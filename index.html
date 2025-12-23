@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
@@ -37,23 +38,56 @@
       ::-webkit-scrollbar-track {
         background: #f1f1f1;
       }
+      .dark ::-webkit-scrollbar-track {
+        background: #1e293b;
+      }
       ::-webkit-scrollbar-thumb {
         background: #cbd5e1;
         border-radius: 10px;
       }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #334155;
+      }
+      
+      /* Global Input Overrides - Refined for better contrast and appearance */
+      input, textarea, select {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1px solid #334155 !important;
+        border-radius: 0.5rem !important;
+        padding: 0.5rem 0.75rem !important;
+      }
+      
+      input:focus, textarea:focus, select:focus {
+        border-color: #0ea5e9 !important;
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2) !important;
+      }
+
+      input::placeholder, textarea::placeholder {
+        color: #64748b !important;
+      }
+
+      /* Fix for browser default date/time picker icons in dark mode */
+      input::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        cursor: pointer;
+      }
+
       @media print {
-        @page { size: landscape; margin: 0.5cm; }
+        @page { size: A4 landscape; margin: 1cm; }
         .no-print { display: none !important; }
         .print-only { display: block !important; }
         body { background: white; -webkit-print-color-adjust: exact !important; }
+        .timetable-container { box-shadow: none !important; border: 1px solid #eee !important; }
       }
-      /* Android Mobile Fixes */
+      
       @media (max-width: 768px) {
         .custom-scrollbar::-webkit-scrollbar {
           height: 4px;
         }
         input, select, textarea {
-          font-size: 16px !important; /* Prevents iOS/Android zoom on focus */
+          font-size: 16px !important;
         }
       }
     </style>
@@ -72,7 +106,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-800 antialiased overflow-x-hidden">
+  <body class="bg-gray-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200 antialiased overflow-x-hidden">
     <div id="root"></div>
   </body>
 </html>

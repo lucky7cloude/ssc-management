@@ -17,7 +17,6 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
   const [todayDate, setTodayDate] = useState('');
   const [todayDayName, setTodayDayName] = useState('');
   const [dailyAttendance, setDailyAttendance] = useState<Record<string, 'present' | 'absent'>>({});
-  const [dailySubstitutions, setDailySubstitutions] = useState<Substitution[]>([]);
   const [subModalTeacher, setSubModalTeacher] = useState<Teacher | null>(null);
 
   useEffect(() => {
@@ -26,7 +25,6 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
     setTodayDate(now.toLocaleDateString('en-CA'));
     setTodayDayName(now.toLocaleDateString('en-US', { weekday: 'long' }));
     setDailyAttendance(dataService.getAttendanceForDate(now.toLocaleDateString('en-CA')));
-    setDailySubstitutions(dataService.getSubstitutionsForDate(now.toLocaleDateString('en-CA')));
   }, []);
 
   const resetForm = () => {
@@ -84,28 +82,28 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
   return (
     <div className="space-y-6">
       {currentRole === 'PRINCIPAL' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 relative">
-            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 relative transition-colors">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-brand-600" />
               {editId ? 'Edit Teacher Profile' : 'Add New Teacher'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex-1">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-lg border-slate-300 p-2.5 border" placeholder="Enter teacher's name" required />
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Full Name</label>
+                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black text-white rounded-lg border border-slate-700 p-2.5 outline-none focus:ring-2 focus:ring-brand-500" placeholder="Enter teacher's name" required />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Theme Color</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Theme Color</label>
                         <div className="flex gap-2 flex-wrap items-center">
                             {PREDEFINED_COLORS.map(c => (
-                                <button key={c} type="button" onClick={() => setSelectedColor(c)} className={`w-8 h-8 rounded-full border-2 ${selectedColor === c ? 'border-slate-800 scale-110 shadow-md' : 'border-transparent'}`} style={{ backgroundColor: c }} />
+                                <button key={c} type="button" onClick={() => setSelectedColor(c)} className={`w-8 h-8 rounded-full border-2 ${selectedColor === c ? 'border-slate-800 dark:border-slate-100 scale-110 shadow-md' : 'border-transparent'}`} style={{ backgroundColor: c }} />
                             ))}
                         </div>
                     </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
-                    {editId && <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-600 font-bold">Cancel</button>}
+                    {editId && <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 font-bold">Cancel</button>}
                     <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-lg font-bold shadow-sm">{editId ? 'Update' : 'Add Teacher'}</button>
                 </div>
             </form>
@@ -116,21 +114,21 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
         {teachers.map(teacher => {
             const isAbsent = dailyAttendance[teacher.id] === 'absent';
             return (
-              <div key={teacher.id} className={`bg-white rounded-xl p-4 border transition-all ${isAbsent ? 'border-red-200 bg-red-50/20' : 'border-slate-100 shadow-sm'}`}>
+              <div key={teacher.id} className={`bg-white dark:bg-slate-900 rounded-xl p-4 border transition-all ${isAbsent ? 'border-red-200 dark:border-red-900/50 bg-red-50/20 dark:bg-red-950/20' : 'border-slate-100 dark:border-slate-800 shadow-sm'}`}>
                  <div className="flex items-center gap-4 mb-3">
-                     <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: teacher.color }}>{teacher.initials}</div>
-                     <div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{teacher.name}</h3></div>
+                     <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: teacher.color }}>{teacher.initials}</div>
+                     <div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 dark:text-slate-100 truncate">{teacher.name}</h3></div>
                      <div className="flex gap-1">
-                        <button onClick={() => toggleAttendance(teacher, 'present')} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${!isAbsent ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-400'}`}>P</button>
-                        <button onClick={() => toggleAttendance(teacher, 'absent')} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${isAbsent ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-400'}`}>A</button>
+                        <button onClick={() => toggleAttendance(teacher, 'present')} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${!isAbsent ? 'bg-green-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600'}`}>P</button>
+                        <button onClick={() => toggleAttendance(teacher, 'absent')} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${isAbsent ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600'}`}>A</button>
                      </div>
                  </div>
-                 <div className="flex items-center justify-between pt-3 border-t border-slate-50">
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Teacher ID: {teacher.id.slice(-5)}</span>
+                 <div className="flex items-center justify-between pt-3 border-t border-slate-50 dark:border-slate-800">
+                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">Teacher ID: {teacher.id.slice(-5)}</span>
                      {currentRole === 'PRINCIPAL' && (
                         <div className="flex gap-1">
-                            <button onClick={() => handleEdit(teacher)} className="p-1.5 text-slate-400 hover:text-brand-600"><Edit2 className="w-4 h-4" /></button>
-                            <button onClick={() => handleDelete(teacher.id)} className="p-1.5 text-slate-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleEdit(teacher)} className="p-1.5 text-slate-400 dark:text-slate-600 hover:text-brand-600 dark:hover:text-brand-400"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleDelete(teacher.id)} className="p-1.5 text-slate-400 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                         </div>
                      )}
                  </div>
@@ -140,16 +138,16 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
       </div>
 
       {subModalTeacher && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border dark:border-slate-800">
                   <div className="bg-red-600 p-4 flex justify-between items-center text-white">
                       <h3 className="font-bold">Assign Substitute for {subModalTeacher.name}</h3>
                       <button onClick={() => setSubModalTeacher(null)}><X className="w-5 h-5"/></button>
                   </div>
-                  <div className="p-4 bg-slate-50 text-xs font-bold text-slate-500 text-center">Redirecting to Timetable to manage daily replacements...</div>
+                  <div className="p-4 bg-slate-50 dark:bg-black text-xs font-bold text-slate-500 dark:text-slate-400 text-center">Redirecting to Timetable to manage replacements...</div>
                   <div className="p-6 text-center">
-                      <p className="text-slate-600 mb-4">You have marked this teacher as absent. Please visit the Timetable section for today to manage periods and assign available substitutes.</p>
-                      <button onClick={() => setSubModalTeacher(null)} className="w-full bg-slate-800 text-white py-2.5 rounded-lg font-bold">I'll manage in Timetable</button>
+                      <p className="text-slate-600 dark:text-slate-300 mb-4 text-sm">You have marked this teacher as absent. Please visit the Timetable section for today to manage periods and assign available substitutes.</p>
+                      <button onClick={() => setSubModalTeacher(null)} className="w-full bg-slate-800 dark:bg-brand-600 text-white py-2.5 rounded-lg font-bold hover:opacity-90 transition-opacity">OK, I understand</button>
                   </div>
               </div>
           </div>

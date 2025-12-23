@@ -5,7 +5,8 @@ import { Teacher, ScheduleEntry } from "../types";
 // Always initialize the client using the API key from environment variables.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const analyzeWorkload = async (teachers: Teacher[], schedule: ScheduleEntry[]) => {
+// --- FIX: Changed schedule type to any[] to support accessing metadata properties like day, periodIndex, and classId ---
+export const analyzeWorkload = async (teachers: Teacher[], schedule: any[]) => {
     try {
         // Prepare a concise data summary for the AI
         const dataSummary = {

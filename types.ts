@@ -5,19 +5,15 @@ export interface Teacher {
   id: string;
   name: string;
   initials: string;
-  color: string; // Hex color for UI
+  color: string;
 }
 
 export interface ClassSection {
   id: string;
-  name: string; // e.g., "Class 10-A"
+  name: string;
 }
 
 export interface ScheduleEntry {
-  id: string;
-  classId: string;
-  day: string; // "Monday", "Tuesday", etc.
-  periodIndex: number; // 0-based index
   teacherId: string;
   subject: string;
   isSplit?: boolean;
@@ -25,9 +21,16 @@ export interface ScheduleEntry {
   splitSubject?: string;
 }
 
+export interface DailyOverride {
+  subTeacherId: string;
+  subSubject: string;
+  originalTeacherId: string;
+  type: 'SUBSTITUTION' | 'EVENT' | 'VACANT';
+}
+
 export interface Substitution {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   classId: string;
   periodIndex: number;
   originalTeacherId: string;
@@ -37,7 +40,7 @@ export interface Substitution {
 export interface TeacherRemark {
   id: string;
   teacherId: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   note: string;
   type: 'General' | 'Monthly' | 'Yearly';
 }
@@ -47,7 +50,7 @@ export interface ExamSchedule {
   examType: string;
   classId: string;
   subject: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   startTime: string;
   endTime: string;
 }
