@@ -1,7 +1,7 @@
 
 export type UserRole = 'PRINCIPAL' | 'MANAGEMENT';
 
-export const SCHOOL_LOGO_URL = 'https://aggressive-green-y4tc5do8ng.edgeone.app/IMG-20260116-WA0029-removebg-preview.png';
+export const SCHOOL_LOGO_URL = 'https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png';
 
 export interface Teacher {
   id: string;
