@@ -44,7 +44,7 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
       setSubjectsTaught(subjectsTaught.filter(s => s !== sub));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
@@ -56,8 +56,10 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
       subjectsTaught: subjectsTaught
     };
 
-    setTeachers(dataService.saveTeacher(teacherData));
+    const updated = await dataService.saveTeacher(teacherData);
+    setTeachers(updated);
     resetForm();
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Teacher Cloud Profile Updated", type: 'success' } }));
   };
 
   const handleEdit = (teacher: Teacher) => {
@@ -69,16 +71,18 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (currentRole !== 'PRINCIPAL') return;
     if (confirm('Are you sure?')) {
-      setTeachers(dataService.deleteTeacher(id));
+      const updated = await dataService.deleteTeacher(id);
+      setTeachers(updated);
       if (editId === id) resetForm();
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Teacher Profile Removed", type: 'success' } }));
     }
   };
 
-  const toggleAttendance = (teacher: Teacher, status: 'present' | 'absent') => {
-      dataService.markTeacherAttendance(todayDate, teacher.id, status);
+  const toggleAttendance = async (teacher: Teacher, status: 'present' | 'absent') => {
+      await dataService.markTeacherAttendance(todayDate, teacher.id, status);
       setDailyAttendance(prev => {
           const newState = { ...prev };
           if (status === 'present') delete newState[teacher.id];
@@ -178,7 +182,7 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
 
       <div className="pt-10 flex flex-col items-center opacity-30">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
-            <span>Made by Lucky</span>
+            <span>Official S.S.C.S Registry</span>
             <Heart className="w-3 h-3 text-red-500 fill-current" />
         </div>
       </div>

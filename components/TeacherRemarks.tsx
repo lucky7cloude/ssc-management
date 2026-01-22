@@ -30,7 +30,8 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
         setRemarks(dataService.getRemarks().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // Fix: Made handleSubmit async to handle promise from dataService
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!selectedTeacherId || !date || !note.trim()) return;
 
@@ -42,14 +43,17 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
             type: remarkType
         };
 
-        const updated = dataService.addRemark(newRemark);
+        // Fix: Await the promise before sorting the resulting array
+        const updated = await dataService.addRemark(newRemark);
         setRemarks(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setNote('');
     };
 
-    const handleDelete = (id: string) => {
+    // Fix: Made handleDelete async to handle promise from dataService
+    const handleDelete = async (id: string) => {
         if(confirm("Are you sure you want to delete this remark?")){
-            const updated = dataService.deleteRemark(id);
+            // Fix: Await the promise before sorting the resulting array
+            const updated = await dataService.deleteRemark(id);
             setRemarks(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         }
     };

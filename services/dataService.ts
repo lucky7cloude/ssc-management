@@ -1,308 +1,239 @@
 
 import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, Substitution, AppNotification, PERIODS, DAYS, TeacherMeeting } from '../types';
 
-const PREFIX = 'silver_star_';
-const TEACHERS_KEY = PREFIX + 'teachers';
-const BASE_SCHEDULE_KEY = PREFIX + 'base_schedule'; 
-const OVERRIDES_KEY = PREFIX + 'daily_overrides'; 
-const CLASSES_KEY = PREFIX + 'classes';
-const REMARKS_KEY = PREFIX + 'remarks';
-const EXAMS_KEY = PREFIX + 'exams';
-const MEETINGS_KEY = PREFIX + 'meetings';
-const ATTENDANCE_KEY = PREFIX + 'attendance';
-const NOTIFICATIONS_KEY = PREFIX + 'notifications';
-const TIMETABLE_NOTES_KEY = PREFIX + 'timetable_notes';
-const TEACHER_INSTRUCTIONS_KEY = PREFIX + 'teacher_instructions';
+const PREFIX = 'silver_star_cloud_v5_';
+const CLOUD_SYNC_KEY = PREFIX + 'database_id';
+const LOCAL_CACHE_KEY = PREFIX + 'local_db_cache';
 
-const safeParse = (key: string, fallback: any) => {
+// This is the "Master Key" for Silver Star Convent School.
+// Anyone with this key can access and edit the same database.
+const DEFAULT_SYNC_ID = 'silver-star-convent-school-official-db-2025';
+
+export const getSyncId = () => localStorage.getItem(CLOUD_SYNC_KEY) || DEFAULT_SYNC_ID;
+
+export const setSyncId = (id: string) => {
+    localStorage.setItem(CLOUD_SYNC_KEY, id);
+    window.location.reload(); // Reload to connect to the new database
+};
+
+// --- CLOUD ENGINE ---
+
+// Push entire state to the cloud
+const pushToCloud = async (data: any) => {
+    const id = getSyncId();
+    data.lastUpdated = Date.now();
     try {
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : fallback;
+        const response = await fetch(`https://keyvalue.xyz/1/${id}`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (response.ok) {
+            localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data));
+            return true;
+        }
+        return false;
     } catch (e) {
-        console.error(`Error parsing ${key} from storage:`, e);
-        return fallback;
+        console.error("Cloud save failed", e);
+        return false;
     }
+};
+
+// Pull entire state from cloud
+export const fetchAllData = async () => {
+    const id = getSyncId();
+    try {
+        const res = await fetch(`https://keyvalue.xyz/1/${id}`);
+        if (!res.ok) {
+            // If cloud is empty, initialize it with local data (Migration)
+            const localData = getStore();
+            await pushToCloud(localData);
+            return localData;
+        }
+        const cloudData = await res.json();
+        if (cloudData) {
+            localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cloudData));
+            return cloudData;
+        }
+        return null;
+    } catch (e) {
+        // Offline fallback
+        const cache = localStorage.getItem(LOCAL_CACHE_KEY);
+        return cache ? JSON.parse(cache) : null;
+    }
+};
+
+// Get current state from local cache
+const getStore = () => {
+    const cache = localStorage.getItem(LOCAL_CACHE_KEY);
+    return cache ? JSON.parse(cache) : {
+        teachers: [],
+        baseSchedule: {},
+        overrides: {},
+        classes: [],
+        remarks: [],
+        exams: [],
+        meetings: [],
+        attendance: {},
+        notes: {},
+        instructions: {},
+        notifications: [],
+        lastUpdated: 0
+    };
+};
+
+// Update a specific key in the cloud store
+const updateStore = async (key: string, value: any) => {
+    const store = getStore();
+    store[key] = value;
+    
+    // Broadcast "Saving..." status
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: 'SYNCING' }));
+    
+    const success = await pushToCloud(store);
+    
+    // Broadcast result
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: success ? 'IDLE' : 'ERROR' }));
+    window.dispatchEvent(new CustomEvent('data-updated'));
+    
+    return store[key];
+};
+
+// --- DATA ACCESSORS ---
+
+export const getTeachers = (): Teacher[] => getStore().teachers || [];
+export const saveTeacher = async (teacher: Teacher) => {
+    const teachers = getTeachers();
+    const index = teachers.findIndex(t => t.id === teacher.id);
+    if (index >= 0) teachers[index] = teacher;
+    else teachers.push(teacher);
+    return await updateStore('teachers', teachers);
+};
+export const deleteTeacher = async (id: string) => {
+    const teachers = getTeachers().filter(t => t.id !== id);
+    return await updateStore('teachers', teachers);
+};
+
+export const getClasses = (): ClassSection[] => {
+    const store = getStore();
+    if (store.classes && store.classes.length > 0) return store.classes;
+    // Default classes if none exist
+    return [
+        { id: 'c6', name: 'Class 6', section: 'SECONDARY' },
+        { id: 'c7', name: 'Class 7', section: 'SECONDARY' },
+        { id: 'c8', name: 'Class 8', section: 'SECONDARY' },
+        { id: 'c9', name: 'Class 9', section: 'SECONDARY' },
+        { id: 'c10', name: 'Class 10', section: 'SECONDARY' },
+        { id: 'c11s', name: '11th Science', section: 'SENIOR_SECONDARY' },
+        { id: 'c11c', name: '11th Commerce', section: 'SENIOR_SECONDARY' },
+        { id: 'c12s', name: '12th Science', section: 'SENIOR_SECONDARY' },
+        { id: 'c12c', name: '12th Commerce', section: 'SENIOR_SECONDARY' },
+    ];
+};
+export const saveClasses = async (classes: ClassSection[]) => updateStore('classes', classes);
+export const deleteClass = async (classId: string) => {
+    const updated = getClasses().filter(c => c.id !== classId);
+    return await saveClasses(updated);
+};
+
+export const getBaseSchedule = (dayName: string): Record<string, ScheduleEntry> => getStore().baseSchedule[dayName] || {};
+export const saveBaseEntry = async (dayName: string, classId: string, periodIndex: number, entry: ScheduleEntry | null) => {
+    const store = getStore();
+    if (!store.baseSchedule[dayName]) store.baseSchedule[dayName] = {};
+    const key = `${classId}_${periodIndex}`;
+    if (entry) store.baseSchedule[dayName][key] = entry;
+    else delete store.baseSchedule[dayName][key];
+    return await updateStore('baseSchedule', store.baseSchedule);
+};
+
+export const getDailyOverrides = (dateStr: string): Record<string, DailyOverride> => getStore().overrides[dateStr] || {};
+export const saveDailyOverride = async (dateStr: string, classId: string, periodIndex: number, override: DailyOverride | null) => {
+    const store = getStore();
+    if (!store.overrides[dateStr]) store.overrides[dateStr] = {};
+    const key = `${classId}_${periodIndex}`;
+    if (override) store.overrides[dateStr][key] = override;
+    else delete store.overrides[dateStr][key];
+    return await updateStore('overrides', store.overrides);
 };
 
 export const getEffectiveSchedule = (dateStr: string, dayName: string) => {
     const base = getBaseSchedule(dayName);
     const overrides = getDailyOverrides(dateStr);
     const effective: Record<string, any> = { ...base };
-    
     Object.keys(overrides).forEach(key => {
-        if (overrides[key]) {
-            effective[key] = {
-                ...(base[key] || {}),
-                ...overrides[key],
-                isOverride: true
-            };
-        }
+        if (overrides[key]) effective[key] = { ...(base[key] || {}), ...overrides[key], isOverride: true };
     });
-    
     return effective;
 };
 
-export const getBaseSchedule = (dayName: string): Record<string, ScheduleEntry> => {
-    const allBases = safeParse(BASE_SCHEDULE_KEY, {});
-    return allBases[dayName] || {};
+export const getRemarks = (): TeacherRemark[] => getStore().remarks || [];
+export const addRemark = async (remark: TeacherRemark) => {
+    const remarks = getRemarks();
+    remarks.push(remark);
+    return await updateStore('remarks', remarks);
+};
+export const deleteRemark = async (id: string) => {
+    const remarks = getRemarks().filter(r => r.id !== id);
+    return await updateStore('remarks', remarks);
 };
 
-export const bulkSaveBaseSchedule = (fullSchedule: Record<string, Record<string, ScheduleEntry>>) => {
-    localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(fullSchedule));
+export const getExams = (): ExamSchedule[] => getStore().exams || [];
+export const addExam = async (exam: ExamSchedule) => {
+    const exams = getExams();
+    exams.push(exam);
+    return await updateStore('exams', exams);
+};
+export const deleteExam = async (id: string) => {
+    const exams = getExams().filter(e => e.id !== id);
+    return await updateStore('exams', exams);
 };
 
-export const getSchedule = (): any[] => {
-    const allBases = safeParse(BASE_SCHEDULE_KEY, {});
-    const flatSchedule: any[] = [];
-    Object.keys(allBases).forEach(day => {
-        const daySchedule = allBases[day];
-        if (daySchedule) {
-            Object.keys(daySchedule).forEach(slotKey => {
-                const [classId, periodIndex] = slotKey.split('_');
-                flatSchedule.push({ 
-                    ...daySchedule[slotKey], 
-                    day, 
-                    classId, 
-                    periodIndex: parseInt(periodIndex) 
-                });
-            });
-        }
-    });
-    return flatSchedule;
+export const getMeetings = (): TeacherMeeting[] => getStore().meetings || [];
+export const saveMeeting = async (meeting: TeacherMeeting) => {
+    const meetings = getMeetings();
+    const index = meetings.findIndex(m => m.id === meeting.id);
+    if (index >= 0) meetings[index] = meeting;
+    else meetings.push(meeting);
+    return await updateStore('meetings', meetings);
+};
+export const deleteMeeting = async (id: string) => {
+    const meetings = getMeetings().filter(m => m.id !== id);
+    return await updateStore('meetings', meetings);
 };
 
+export const getAttendanceForDate = (dateStr: string) => (getStore().attendance || {})[dateStr] || {};
+export const markTeacherAttendance = async (dateStr: string, teacherId: string, status: 'present' | 'absent') => {
+    const store = getStore();
+    if (!store.attendance) store.attendance = {};
+    if (!store.attendance[dateStr]) store.attendance[dateStr] = {};
+    if (status === 'present') delete store.attendance[dateStr][teacherId];
+    else store.attendance[dateStr][teacherId] = 'absent';
+    return await updateStore('attendance', store.attendance);
+};
+
+export const getTeacherInstructions = (date: string) => (getStore().instructions || {})[date] || '';
+export const saveTeacherInstructions = async (date: string, instructions: string) => {
+    const store = getStore();
+    if (!store.instructions) store.instructions = {};
+    store.instructions[date] = instructions;
+    return await updateStore('instructions', store.instructions);
+};
+
+export const getNotifications = (): AppNotification[] => getStore().notifications || [];
+export const clearNotifications = async () => updateStore('notifications', []);
+
+// Function to find free teachers
 export const getFreeTeachers = (dateStr: string, dayName: string, periodIndex: number): Teacher[] => {
     const teachers = getTeachers();
     const attendance = getAttendanceForDate(dateStr);
     const schedule = getEffectiveSchedule(dateStr, dayName);
-    
     return teachers.filter(t => {
-        const isAbsent = attendance[t.id] === 'absent';
-        if (isAbsent) return false;
-        
-        const isBusy = Object.keys(schedule).some(key => {
+        if (attendance[t.id] === 'absent') return false;
+        return !Object.keys(schedule).some(key => {
             const [_, pIdx] = key.split('_');
             if (parseInt(pIdx) !== periodIndex) return false;
             const entry = schedule[key];
             return entry && (entry.teacherId === t.id || entry.subTeacherId === t.id || entry.splitTeacherId === t.id);
         });
-        
-        return !isBusy;
     });
 };
-
-export const saveBaseEntry = (dayName: string, classId: string, periodIndex: number, entry: ScheduleEntry | null) => {
-    const allBases = safeParse(BASE_SCHEDULE_KEY, {});
-    if (!allBases[dayName]) allBases[dayName] = {};
-    const key = `${classId}_${periodIndex}`;
-    
-    if (entry) {
-        allBases[dayName][key] = entry;
-        // Batch assignment for merged classes
-        if (entry.mergedClassIds?.length) {
-            entry.mergedClassIds.forEach(mId => {
-                const mKey = `${mId}_${periodIndex}`;
-                allBases[dayName][mKey] = { ...entry, mergedClassIds: [classId, ...entry.mergedClassIds.filter(id => id !== mId)] };
-            });
-        }
-    } else {
-        delete allBases[dayName][key];
-    }
-    
-    localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(allBases));
-    return allBases[dayName];
-};
-
-export const getDailyOverrides = (dateStr: string): Record<string, DailyOverride> => {
-    const allOverrides = safeParse(OVERRIDES_KEY, {});
-    return allOverrides[dateStr] || {};
-};
-
-export const saveDailyOverride = (dateStr: string, classId: string, periodIndex: number, override: DailyOverride | null) => {
-    const allOverrides = safeParse(OVERRIDES_KEY, {});
-    if (!allOverrides[dateStr]) allOverrides[dateStr] = {};
-    const key = `${classId}_${periodIndex}`;
-    
-    if (override) {
-        allOverrides[dateStr][key] = override;
-        // Batch assignment for merged classes
-        if (override.mergedClassIds?.length) {
-            override.mergedClassIds.forEach(mId => {
-                const mKey = `${mId}_${periodIndex}`;
-                allOverrides[dateStr][mKey] = { ...override, mergedClassIds: [classId, ...override.mergedClassIds.filter(id => id !== mId)] };
-            });
-        }
-    } else {
-        delete allOverrides[dateStr][key];
-    }
-    
-    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(allOverrides));
-    return allOverrides[dateStr];
-};
-
-export const getTeachers = (): Teacher[] => {
-  return safeParse(TEACHERS_KEY, []);
-};
-
-export const saveTeacher = (teacher: Teacher) => {
-  const teachers = getTeachers();
-  const index = teachers.findIndex(t => t.id === teacher.id);
-  if (index >= 0) teachers[index] = teacher;
-  else teachers.push(teacher);
-  localStorage.setItem(TEACHERS_KEY, JSON.stringify(teachers));
-  return teachers;
-};
-
-export const deleteTeacher = (id: string) => {
-  const teachers = getTeachers().filter(t => t.id !== id);
-  localStorage.setItem(TEACHERS_KEY, JSON.stringify(teachers));
-  return teachers;
-};
-
-export const getClasses = (): ClassSection[] => {
-  const DEFAULT_CLASSES: ClassSection[] = [
-    { id: 'c6', name: 'Class 6', section: 'SECONDARY' },
-    { id: 'c7', name: 'Class 7', section: 'SECONDARY' },
-    { id: 'c8', name: 'Class 8', section: 'SECONDARY' },
-    { id: 'c9', name: 'Class 9', section: 'SECONDARY' },
-    { id: 'c10', name: 'Class 10', section: 'SECONDARY' },
-    { id: 'c11s', name: '11th Science', section: 'SENIOR_SECONDARY' },
-    { id: 'c11c', name: '11th Commerce', section: 'SENIOR_SECONDARY' },
-    { id: 'c12s', name: '12th Science', section: 'SENIOR_SECONDARY' },
-    { id: 'c12c', name: '12th Commerce', section: 'SENIOR_SECONDARY' },
-  ];
-  return safeParse(CLASSES_KEY, DEFAULT_CLASSES);
-};
-
-export const saveClasses = (classes: ClassSection[]) => {
-    localStorage.setItem(CLASSES_KEY, JSON.stringify(classes));
-    return classes;
-}
-
-export const deleteClass = (classId: string) => {
-    // 1. Remove from class list
-    const classes = getClasses().filter(c => c.id !== classId);
-    saveClasses(classes);
-    
-    // 2. Cleanup Base Schedule
-    const allBases = safeParse(BASE_SCHEDULE_KEY, {});
-    Object.keys(allBases).forEach(day => {
-        const daySchedule = allBases[day];
-        if (daySchedule && typeof daySchedule === 'object') {
-            Object.keys(daySchedule).forEach(key => {
-                // Remove direct entries
-                if (key.startsWith(`${classId}_`)) {
-                    delete daySchedule[key];
-                } else {
-                    // Remove merged references in other classes
-                    const entry = daySchedule[key];
-                    if (entry && entry.mergedClassIds) {
-                        entry.mergedClassIds = entry.mergedClassIds.filter((id: string) => id !== classId);
-                        if (entry.mergedClassIds.length === 0) delete entry.mergedClassIds;
-                    }
-                }
-            });
-        }
-    });
-    localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(allBases));
-
-    // 3. Cleanup Daily Overrides
-    const allOverrides = safeParse(OVERRIDES_KEY, {});
-    Object.keys(allOverrides).forEach(date => {
-        const dateOverrides = allOverrides[date];
-        if (dateOverrides && typeof dateOverrides === 'object') {
-            Object.keys(dateOverrides).forEach(key => {
-                // Remove direct entries
-                if (key.startsWith(`${classId}_`)) {
-                    delete dateOverrides[key];
-                } else {
-                    // Remove merged references in other classes
-                    const entry = dateOverrides[key];
-                    if (entry && entry.mergedClassIds) {
-                        entry.mergedClassIds = entry.mergedClassIds.filter((id: string) => id !== classId);
-                        if (entry.mergedClassIds.length === 0) delete entry.mergedClassIds;
-                    }
-                }
-            });
-        }
-    });
-    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(allOverrides));
-    
-    return classes;
-}
-
-export const getRemarks = (): TeacherRemark[] => safeParse(REMARKS_KEY, []);
-export const addRemark = (remark: TeacherRemark) => {
-  const remarks = getRemarks();
-  remarks.push(remark);
-  localStorage.setItem(REMARKS_KEY, JSON.stringify(remarks));
-  return remarks;
-};
-export const deleteRemark = (id: string) => {
-  const remarks = getRemarks().filter(r => r.id !== id);
-  localStorage.setItem(REMARKS_KEY, JSON.stringify(remarks));
-  return remarks;
-};
-
-export const getExams = (): ExamSchedule[] => safeParse(EXAMS_KEY, []);
-export const addExam = (exam: ExamSchedule) => {
-  const exams = getExams();
-  exams.push(exam);
-  localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
-  return exams;
-};
-export const deleteExam = (id: string) => {
-  const exams = getExams().filter(e => e.id !== id);
-  localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
-  return exams;
-};
-
-export const getMeetings = (): TeacherMeeting[] => safeParse(MEETINGS_KEY, []);
-export const saveMeeting = (meeting: TeacherMeeting) => {
-    const meetings = getMeetings();
-    const index = meetings.findIndex(m => m.id === meeting.id);
-    if (index >= 0) meetings[index] = meeting;
-    else meetings.push(meeting);
-    localStorage.setItem(MEETINGS_KEY, JSON.stringify(meetings));
-    return meetings;
-};
-export const deleteMeeting = (id: string) => {
-    const meetings = getMeetings().filter(m => m.id !== id);
-    localStorage.setItem(MEETINGS_KEY, JSON.stringify(meetings));
-    return meetings;
-};
-
-export const getAttendanceData = (): Record<string, Record<string, 'present' | 'absent'>> => safeParse(ATTENDANCE_KEY, {});
-export const getAttendanceForDate = (dateStr: string) => getAttendanceData()[dateStr] || {};
-export const markTeacherAttendance = (dateStr: string, teacherId: string, status: 'present' | 'absent') => {
-    const allData = getAttendanceData();
-    if (!allData[dateStr]) allData[dateStr] = {};
-    if (status === 'present') delete allData[dateStr][teacherId];
-    else allData[dateStr][teacherId] = 'absent';
-    localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(allData));
-    return allData[dateStr];
-};
-
-export const getNotifications = (): AppNotification[] => safeParse(NOTIFICATIONS_KEY, []);
-export const addNotification = (message: string, type: 'absence' | 'system' = 'system') => {
-    const notifications = getNotifications();
-    const newNotif: AppNotification = { id: Date.now().toString(), message, date: new Date().toLocaleString(), type, read: false };
-    notifications.unshift(newNotif);
-    if(notifications.length > 50) notifications.pop();
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
-    return notifications;
-};
-export const clearNotifications = () => { localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify([])); return []; }
-export const getTimetableNote = (date: string): string => safeParse(TIMETABLE_NOTES_KEY, {})[date] || "";
-export const saveTimetableNote = (date: string, note: string) => {
-    const notes = safeParse(TIMETABLE_NOTES_KEY, {});
-    notes[date] = note;
-    localStorage.setItem(TIMETABLE_NOTES_KEY, JSON.stringify(notes));
-}
-
-export const getTeacherInstructions = (date: string): string => safeParse(TEACHER_INSTRUCTIONS_KEY, {})[date] || "";
-export const saveTeacherInstructions = (date: string, instructions: string) => {
-    const all = safeParse(TEACHER_INSTRUCTIONS_KEY, {});
-    all[date] = instructions;
-    localStorage.setItem(TEACHER_INSTRUCTIONS_KEY, JSON.stringify(all));
-}

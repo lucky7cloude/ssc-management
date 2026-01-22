@@ -122,7 +122,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     setIsModalOpen(true);
   };
 
-  const handleSaveSlot = () => {
+  const handleSaveSlot = async () => {
     if (!editingSlot) return;
     const { classId, periodIndex } = editingSlot;
     
@@ -137,10 +137,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     };
 
     if (timetableMode === 'BASE') {
-        dataService.saveBaseEntry(selectedDayName, classId, periodIndex, payload.teacherId || payload.note || payload.isSplit ? payload : null);
+        await dataService.saveBaseEntry(selectedDayName, classId, periodIndex, payload.teacherId || payload.note || payload.isSplit ? payload : null);
     } else {
         const baseEntry = dataService.getBaseSchedule(selectedDayName)[`${classId}_${periodIndex}`];
-        dataService.saveDailyOverride(selectedDate, classId, periodIndex, payload.teacherId || payload.note || payload.isSplit ? {
+        await dataService.saveDailyOverride(selectedDate, classId, periodIndex, payload.teacherId || payload.note || payload.isSplit ? {
             ...payload,
             subTeacherId: payload.teacherId,
             subSubject: payload.subject,
@@ -152,6 +152,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     
     refreshData(selectedDate, selectedDayName);
     setIsModalOpen(false);
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Cloud Timetable Updated", type: 'success' } }));
   };
 
   const handleDownloadPDF = async () => {
@@ -208,27 +209,28 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     }
     doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text("Handcrafted by Lucky", 105, 200, { align: 'center' });
+    doc.text("Official Shared Cloud Schedule • Silver Star Convent School", 105, 200, { align: 'center' });
     doc.save(`SilverStar_Timetable_${activeSection}_${selectedDate}.pdf`);
   };
 
-  const saveInstructions = () => {
-      dataService.saveTeacherInstructions(selectedDate, teacherInstructions);
-      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Instructions Saved", type: 'success' } }));
+  const saveInstructions = async () => {
+      await dataService.saveTeacherInstructions(selectedDate, teacherInstructions);
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Cloud Instructions Saved", type: 'success' } }));
   };
 
-  const handleAddClass = () => {
+  const handleAddClass = async () => {
     const newClass: ClassSection = { id: Date.now().toString(), name: "New Class", section: activeSection };
-    setClasses(dataService.saveClasses([...classes, newClass]));
+    const updated = await dataService.saveClasses([...classes, newClass]);
+    setClasses(updated);
   };
 
-  const handleDeleteClass = (id: string) => {
-    if(confirm("Are you sure? This will remove all timetable records for this class from all tables (Daily & Base).")){
-        const updated = dataService.deleteClass(id);
+  const handleDeleteClass = async (id: string) => {
+    if(confirm("Are you sure? This will remove all timetable records for this class from the cloud.")){
+        const updated = await dataService.deleteClass(id);
         setClasses(updated);
         refreshData(selectedDate, selectedDayName);
         setSwipedClassId(null);
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Class & Data Removed", type: 'success' } }));
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Class Cloud Records Removed", type: 'success' } }));
     }
   };
 
@@ -244,7 +246,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   const renderCell = (classId: string, periodIndex: number) => {
     const isLunch = PERIODS[periodIndex].start === "11:15 AM";
-    if (isLunch) return <div className="h-full w-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-[8px] text-slate-300 font-bold uppercase">Lunch</div>;
+    if (isLunch) return <div className="h-full w-full bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase">Lunch</div>;
     
     const key = `${classId}_${periodIndex}`;
     const entry = scheduleData[key];
@@ -416,7 +418,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                                 ))}
                             </div>
                         </div>
-                        <button onClick={handleSaveSlot} className="w-full py-3.5 bg-brand-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Save</button>
+                        <button onClick={handleSaveSlot} className="w-full py-3.5 bg-brand-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Save Assignment</button>
                     </div>
                 </div>
             </div>
@@ -426,22 +428,22 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       {isClassManagerOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm no-print">
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border dark:border-slate-800">
-                <div className="p-4 bg-slate-800 text-white flex justify-between items-center"><h3 className="font-bold text-sm uppercase tracking-widest">Class Manager</h3><button onClick={() => { setIsClassManagerOpen(false); setSwipedClassId(null); }}><X className="w-5 h-5"/></button></div>
+                <div className="p-4 bg-slate-800 text-white flex justify-between items-center"><h3 className="font-bold text-sm uppercase tracking-widest">Class Cloud Registry</h3><button onClick={() => { setIsClassManagerOpen(false); setSwipedClassId(null); }}><X className="w-5 h-5"/></button></div>
                 <div className="p-6 space-y-4">
                     <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-2">
                         {classes.map(cls => (
                             <div key={cls.id} className="relative overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 mb-2 h-11">
                                 <button onClick={() => handleDeleteClass(cls.id)} className="absolute right-0 top-0 bottom-0 w-20 bg-red-600 text-white flex flex-col items-center justify-center gap-0.5"><Trash2 className="w-4 h-4" /><span className="text-[8px] font-black uppercase">Delete</span></button>
                                 <div className="absolute inset-0 bg-white dark:bg-slate-900 flex gap-2 items-center px-2 transition-transform duration-200 ease-out" style={{ transform: swipedClassId === cls.id ? 'translateX(-80px)' : 'translateX(0)' }} onTouchStart={(e) => handleTouchStart(e, cls.id)} onTouchMove={(e) => handleTouchMove(e, cls.id)} onTouchEnd={() => touchStartX.current = null}>
-                                    <select value={cls.section} onChange={(e) => setClasses(dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, section: e.target.value as any } : c)))} className="w-20 text-[10px] uppercase font-bold p-1 bg-slate-100 dark:bg-slate-800 border-none rounded shrink-0"><option value="SECONDARY">Sec</option><option value="SENIOR_SECONDARY">Sr Sec</option></select>
-                                    <input type="text" value={cls.name} onChange={(e) => setClasses(dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, name: e.target.value } : c)))} className="flex-1 text-sm h-8 bg-transparent !border-none px-0" />
+                                    <select value={cls.section} onChange={async (e) => setClasses(await dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, section: e.target.value as any } : c)))} className="w-20 text-[10px] uppercase font-bold p-1 bg-slate-100 dark:bg-slate-800 border-none rounded shrink-0"><option value="SECONDARY">Sec</option><option value="SENIOR_SECONDARY">Sr Sec</option></select>
+                                    <input type="text" value={cls.name} onChange={async (e) => setClasses(await dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, name: e.target.value } : c)))} className="flex-1 text-sm h-8 bg-transparent !border-none px-0" />
                                     <button onClick={() => handleDeleteClass(cls.id)} className="hidden md:block p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                    <button onClick={handleAddClass} className="w-full py-2.5 border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> New Class</button>
-                    <div className="text-[8px] text-center text-slate-400 font-bold uppercase tracking-widest mt-2 italic">Tip: Swipe left on a row to delete</div>
+                    <button onClick={handleAddClass} className="w-full py-2.5 border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Add New Class</button>
+                    <div className="text-[8px] text-center text-slate-400 font-bold uppercase tracking-widest mt-2 italic">Swipe left on mobile to delete records</div>
                 </div>
             </div>
         </div>

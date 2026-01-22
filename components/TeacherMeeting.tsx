@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TeacherMeeting, UserRole } from '../types';
 import * as dataService from '../services/dataService';
@@ -25,7 +26,8 @@ export const TeacherMeetingManager: React.FC<Props> = ({ currentRole }) => {
         setMeetings(dataService.getMeetings().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // Fix: Made handleSubmit async to handle promise from dataService
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!name.trim() || !date || !note.trim()) return;
 
@@ -36,7 +38,8 @@ export const TeacherMeetingManager: React.FC<Props> = ({ currentRole }) => {
             note: note.trim()
         };
 
-        const updated = dataService.saveMeeting(newMeeting);
+        // Fix: Await the promise before sorting the resulting array
+        const updated = await dataService.saveMeeting(newMeeting);
         setMeetings(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         resetForm();
     };
@@ -58,10 +61,12 @@ export const TeacherMeetingManager: React.FC<Props> = ({ currentRole }) => {
         setIsFormOpen(true);
     };
 
-    const handleDelete = (id: string) => {
+    // Fix: Made handleDelete async to handle promise from dataService
+    const handleDelete = async (id: string) => {
         if(currentRole !== 'PRINCIPAL') return;
         if(confirm("Are you sure you want to delete this meeting record?")){
-            const updated = dataService.deleteMeeting(id);
+            // Fix: Await the promise before sorting the resulting array
+            const updated = await dataService.deleteMeeting(id);
             setMeetings(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         }
     };
