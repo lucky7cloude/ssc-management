@@ -5,20 +5,17 @@ const PREFIX = 'silver_star_cloud_v5_';
 const CLOUD_SYNC_KEY = PREFIX + 'database_id';
 const LOCAL_CACHE_KEY = PREFIX + 'local_db_cache';
 
-// This is the "Master Key" for Silver Star Convent School.
-// Anyone with this key can access and edit the same database.
 const DEFAULT_SYNC_ID = 'silver-star-convent-school-official-db-2025';
 
 export const getSyncId = () => localStorage.getItem(CLOUD_SYNC_KEY) || DEFAULT_SYNC_ID;
 
 export const setSyncId = (id: string) => {
     localStorage.setItem(CLOUD_SYNC_KEY, id);
-    window.location.reload(); // Reload to connect to the new database
+    window.location.reload(); 
 };
 
 // --- CLOUD ENGINE ---
 
-// Push entire state to the cloud
 const pushToCloud = async (data: any) => {
     const id = getSyncId();
     data.lastUpdated = Date.now();
@@ -28,42 +25,39 @@ const pushToCloud = async (data: any) => {
             body: JSON.stringify(data),
             headers: { 'Content-Type': 'application/json' }
         });
-        if (response.ok) {
-            localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data));
-            return true;
-        }
-        return false;
+        return response.ok;
     } catch (e) {
         console.error("Cloud save failed", e);
         return false;
     }
 };
 
-// Pull entire state from cloud
 export const fetchAllData = async () => {
     const id = getSyncId();
     try {
         const res = await fetch(`https://keyvalue.xyz/1/${id}`);
         if (!res.ok) {
-            // If cloud is empty, initialize it with local data (Migration)
             const localData = getStore();
             await pushToCloud(localData);
             return localData;
         }
         const cloudData = await res.json();
         if (cloudData) {
-            localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cloudData));
+            // Only update if cloud data is newer or local is empty
+            const local = getStore();
+            if (!local.lastUpdated || cloudData.lastUpdated > local.lastUpdated) {
+                localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cloudData));
+                window.dispatchEvent(new CustomEvent('data-updated'));
+            }
             return cloudData;
         }
         return null;
     } catch (e) {
-        // Offline fallback
         const cache = localStorage.getItem(LOCAL_CACHE_KEY);
         return cache ? JSON.parse(cache) : null;
     }
 };
 
-// Get current state from local cache
 const getStore = () => {
     const cache = localStorage.getItem(LOCAL_CACHE_KEY);
     return cache ? JSON.parse(cache) : {
@@ -82,19 +76,19 @@ const getStore = () => {
     };
 };
 
-// Update a specific key in the cloud store
 const updateStore = async (key: string, value: any) => {
     const store = getStore();
     store[key] = value;
+    store.lastUpdated = Date.now();
     
-    // Broadcast "Saving..." status
-    window.dispatchEvent(new CustomEvent('sync-status', { detail: 'SYNCING' }));
-    
-    const success = await pushToCloud(store);
-    
-    // Broadcast result
-    window.dispatchEvent(new CustomEvent('sync-status', { detail: success ? 'IDLE' : 'ERROR' }));
+    // CRITICAL: Save locally first for instant UI response (Optimistic)
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(store));
     window.dispatchEvent(new CustomEvent('data-updated'));
+    
+    // Then attempt cloud sync
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: 'SYNCING' }));
+    const success = await pushToCloud(store);
+    window.dispatchEvent(new CustomEvent('sync-status', { detail: success ? 'IDLE' : 'ERROR' }));
     
     return store[key];
 };
@@ -103,7 +97,7 @@ const updateStore = async (key: string, value: any) => {
 
 export const getTeachers = (): Teacher[] => getStore().teachers || [];
 export const saveTeacher = async (teacher: Teacher) => {
-    const teachers = getTeachers();
+    const teachers = [...getTeachers()]; // Clone to avoid mutation issues
     const index = teachers.findIndex(t => t.id === teacher.id);
     if (index >= 0) teachers[index] = teacher;
     else teachers.push(teacher);
@@ -117,7 +111,6 @@ export const deleteTeacher = async (id: string) => {
 export const getClasses = (): ClassSection[] => {
     const store = getStore();
     if (store.classes && store.classes.length > 0) return store.classes;
-    // Default classes if none exist
     return [
         { id: 'c6', name: 'Class 6', section: 'SECONDARY' },
         { id: 'c7', name: 'Class 7', section: 'SECONDARY' },
@@ -222,7 +215,6 @@ export const saveTeacherInstructions = async (date: string, instructions: string
 export const getNotifications = (): AppNotification[] => getStore().notifications || [];
 export const clearNotifications = async () => updateStore('notifications', []);
 
-// Function to find free teachers
 export const getFreeTeachers = (dateStr: string, dayName: string, periodIndex: number): Teacher[] => {
     const teachers = getTeachers();
     const attendance = getAttendanceForDate(dateStr);

@@ -54,11 +54,23 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   
   const timetableRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const loadAll = () => {
     setClasses(dataService.getClasses() || []);
     setTeachers(dataService.getTeachers() || []);
+    if(selectedDate && selectedDayName) refreshData(selectedDate, selectedDayName);
+  };
+
+  useEffect(() => {
     const now = new Date();
     setSelectedDate(now.toLocaleDateString('en-CA'));
+    loadAll();
+
+    const handleDataUpdate = () => {
+        loadAll();
+    };
+
+    window.addEventListener('data-updated', handleDataUpdate);
+    return () => window.removeEventListener('data-updated', handleDataUpdate);
   }, []);
 
   useEffect(() => {
@@ -152,7 +164,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     
     refreshData(selectedDate, selectedDayName);
     setIsModalOpen(false);
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Cloud Timetable Updated", type: 'success' } }));
   };
 
   const handleDownloadPDF = async () => {
@@ -215,7 +226,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   const saveInstructions = async () => {
       await dataService.saveTeacherInstructions(selectedDate, teacherInstructions);
-      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Cloud Instructions Saved", type: 'success' } }));
   };
 
   const handleAddClass = async () => {
@@ -225,12 +235,11 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   };
 
   const handleDeleteClass = async (id: string) => {
-    if(confirm("Are you sure? This will remove all timetable records for this class from the cloud.")){
+    if(confirm("Remove this class from the cloud database?")){
         const updated = await dataService.deleteClass(id);
         setClasses(updated);
         refreshData(selectedDate, selectedDayName);
         setSwipedClassId(null);
-        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Class Cloud Records Removed", type: 'success' } }));
     }
   };
 
