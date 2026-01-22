@@ -9,7 +9,7 @@ import { SettingsManager } from './components/Settings';
 import { Calendar, Users, BarChart3, GraduationCap, Sparkles, FileSignature, Clock, Heart, CheckCircle2, Bell, LogOut, Lock, Shield, X, KeyRound, ChevronRight, ClipboardList, Menu, Settings as SettingsIcon, Moon, Sun } from 'lucide-react';
 import * as dataService from './services/dataService';
 import * as geminiService from './services/geminiService';
-import { UserRole, AppNotification } from './types';
+import { UserRole, AppNotification, SCHOOL_LOGO_URL } from './types';
 
 enum View {
   TIMETABLE = 'TIMETABLE',
@@ -21,8 +21,6 @@ enum View {
   SETTINGS = 'SETTINGS'
 }
 
-const DEFAULT_LOGO = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500"><defs><style>@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');</style></defs><path d="M100,250 C100,100 250,50 400,250" fill="none" stroke="#b45309" stroke-width="8" stroke-linecap="round" /><path d="M100,250 C100,400 250,450 400,250" fill="none" stroke="#b45309" stroke-width="8" stroke-linecap="round" /><g fill="#d97706"><circle cx="110" cy="200" r="8" /><circle cx="130" cy="160" r="8" /><circle cx="160" cy="130" r="8" /><circle cx="200" cy="105" r="8" /><circle cx="250" cy="95" r="8" /><circle cx="300" cy="105" r="8" /><circle cx="340" cy="130" r="8" /><circle cx="370" cy="160" r="8" /><circle cx="390" cy="200" r="8" /><circle cx="110" cy="300" r="8" /><circle cx="130" cy="340" r="8" /><circle cx="160" cy="370" r="8" /><circle cx="200" cy="395" r="8" /><circle cx="250" cy="405" r="8" /><circle cx="300" cy="395" r="8" /><circle cx="340" cy="370" r="8" /><circle cx="370" cy="340" r="8" /><circle cx="390" cy="300" r="8" /></g><path d="M230,320 L230,220 C230,220 180,200 170,180" stroke="#004e98" stroke-width="12" fill="none" stroke-linecap="round"/><path d="M270,320 L270,220 C270,220 320,200 330,180" stroke="#004e98" stroke-width="12" fill="none" stroke-linecap="round"/><path d="M250,280 L250,150" stroke="#004e98" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M250,200 L210,160" stroke="#004e98" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M250,190 L290,150" stroke="#004e98" stroke-width="8" fill="none" stroke-linecap="round"/><g fill="#dc2626"><path d="M250,110 L254,122 L266,122 L256,130 L260,142 L250,134 L240,142 L244,130 L234,122 L246,122 Z" /><path d="M190,140 L194,152 L206,152 L196,160 L200,172 L190,164 L180,172 L184,160 L174,152 L186,152 Z" /><path d="M310,140 L314,152 L326,152 L316,160 L320,172 L310,164 L300,172 L304,160 L294,152 L306,152 Z" /><path d="M150,190 L153,198 L161,198 L155,204 L157,212 L150,207 L143,212 L145,204 L139,198 L147,198 Z" /><path d="M350,190 L353,198 L361,198 L355,204 L357,212 L350,207 L343,212 L345,204 L339,198 L347,198 Z" /></g><text x="250" y="440" text-anchor="middle" font-family="'Playfair Display', serif" font-weight="bold" font-size="42" fill="#1e293b">Silver Star</text><text x="250" y="475" text-anchor="middle" font-family="'Playfair Display', serif" font-size="32" fill="#334155">Convent School</text><g fill="#1e293b"><path d="M250,50 L254,62 L266,62 L256,70 L260,82 L250,74 L240,82 L244,70 L234,62 L246,62 Z" transform="scale(0.8) translate(60, 20)" /><path d="M210,60 L214,72 L226,72 L216,80 L220,92 L210,84 L200,92 L204,80 L194,72 L206,72 Z" transform="scale(0.8) translate(60, 20)" /><path d="M290,60 L294,72 L306,72 L296,80 L300,92 L290,84 L280,92 L284,80 L274,72 L286,72 Z" transform="scale(0.8) translate(60, 20)" /></g></svg>`;
-
 const App: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [currentView, setCurrentView] = useState<View>(View.TIMETABLE);
@@ -30,7 +28,6 @@ const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiReport, setAiReport] = useState<string | null>(null);
-  const [logo, setLogo] = useState<string>(DEFAULT_LOGO);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedRoleForLogin, setSelectedRoleForLogin] = useState<UserRole | null>(null);
@@ -51,23 +48,16 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   useEffect(() => {
-    const savedLogo = localStorage.getItem('school_logo');
-    if (savedLogo) setLogo(savedLogo);
-    
     setNotifications(dataService.getNotifications());
-    
     const handleNotificationUpdate = () => setNotifications(dataService.getNotifications());
     const handleToast = (e: CustomEvent) => { setToast(e.detail); setTimeout(() => setToast(null), 3000); };
-    const handleLogoUpdate = (e: any) => { setLogo(e.detail || DEFAULT_LOGO); };
-
+    
     window.addEventListener('notifications-updated' as any, handleNotificationUpdate);
     window.addEventListener('show-toast' as any, handleToast);
-    window.addEventListener('logo-updated' as any, handleLogoUpdate);
-
+    
     return () => {
         window.removeEventListener('notifications-updated' as any, handleNotificationUpdate);
         window.removeEventListener('show-toast' as any, handleToast);
-        window.removeEventListener('logo-updated' as any, handleLogoUpdate);
     }
   }, []);
 
@@ -97,9 +87,12 @@ const App: React.FC = () => {
       return (
           <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
               <div className="mb-8 flex flex-col items-center animate-fade-in text-center">
-                 <div className="w-24 h-24 mb-4"><img src={logo} alt="Logo" className="w-full h-full object-contain" /></div>
+                 <div className="w-24 h-24 mb-4"><img src={SCHOOL_LOGO_URL} alt="Logo" className="w-full h-full object-contain" /></div>
                  <h1 className="text-3xl font-serif font-bold text-slate-800 dark:text-slate-100">Silver Star</h1>
                  <p className="text-slate-500 dark:text-slate-400 font-medium">School Management System</p>
+                 <div className="mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                    Made by Lucky <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
+                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-xl">
                   <button onClick={() => handleRoleSelect('PRINCIPAL')} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-brand-500 transition-all flex flex-col items-center text-center group">
@@ -116,7 +109,7 @@ const App: React.FC = () => {
               {showLoginModal && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
                       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-pop-in">
-                          <div className="bg-slate-800 dark:bg-black p-4 flex justify-between items-center text-white"><h3 className="font-bold flex items-center gap-2 text-sm"><Lock className="w-4 h-4" /> Secure Portal Access</h3><button onClick={() => setShowLoginModal(false)}><X className="w-4 h-4"/></button></div>
+                          <div className="bg-slate-800 dark:bg-black p-4 flex justify-between items-center text-white"><h3 className="font-bold flex items-center gap-2 text-sm"><Lock className="w-4 h-4" /> Secure Access</h3><button onClick={() => setShowLoginModal(false)}><X className="w-4 h-4"/></button></div>
                           <form onSubmit={handleLoginSubmit} className="p-6 space-y-4">
                                 <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full rounded-lg bg-black border border-slate-700 p-3 outline-none focus:ring-2 focus:ring-brand-500 font-bold tracking-widest text-center text-white" placeholder="••••••••" autoFocus />
                                 {loginError && <p className="text-xs text-red-500 font-bold text-center uppercase tracking-wider">{loginError}</p>}
@@ -132,12 +125,10 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row overflow-x-hidden transition-colors duration-300">
       {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] animate-pop-in"><div className="bg-slate-800 dark:bg-black text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-bold text-xs border border-slate-700"><CheckCircle2 className="w-4 h-4 text-green-400" /> {toast.message}</div></div>}
-      
       {isSidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 md:hidden animate-fade-in" onClick={() => setIsSidebarOpen(false)}></div>}
-
       <aside className={`fixed md:sticky top-0 left-0 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 transition-transform md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col no-print`}>
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col items-center">
-            <div className="w-20 h-20 mb-3"><img src={logo} alt="Silver Star" className="w-full h-full object-contain" /></div>
+            <div className="w-20 h-20 mb-3"><img src={SCHOOL_LOGO_URL} alt="Silver Star" className="w-full h-full object-contain" /></div>
             <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em] text-center">Silver Star</h2>
         </div>
         <nav className="p-3 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
@@ -150,7 +141,7 @@ const App: React.FC = () => {
           <NavButton view={View.SETTINGS} icon={SettingsIcon} label="Settings" />
         </nav>
         <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-2">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{currentRole} Mode</div>
+            <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] mb-1">Made by Lucky</div>
             <button onClick={() => setCurrentRole(null)} className="w-full flex items-center justify-center gap-2 text-xs text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-all"><LogOut className="w-4 h-4" /> Sign Out</button>
         </div>
       </aside>
@@ -158,7 +149,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 h-16 flex items-center justify-between px-4 md:px-8 shrink-0 no-print z-30">
            <div className="flex items-center gap-4">
-              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><Menu className="w-6 h-6 text-slate-600 dark:text-slate-400" /></button>
+              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 hover:bg-slate-100 rounded-lg"><Menu className="w-6 h-6 text-slate-600 dark:text-slate-400" /></button>
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 font-serif truncate">
                 {currentView === View.TIMETABLE && 'School Timetable'}
                 {currentView === View.TEACHERS && 'Staff Registry'}
@@ -170,12 +161,12 @@ const App: React.FC = () => {
               </h2>
            </div>
            <div className="flex items-center gap-3">
-              <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-all">
+              <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-slate-100 text-slate-600 dark:text-slate-400 transition-all">
                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 relative text-slate-600 dark:text-slate-400">
+              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2 rounded-full hover:bg-slate-100 relative text-slate-600 dark:text-slate-400">
                   <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></span>}
+                  {unreadCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>}
               </button>
            </div>
            {isNotifOpen && (
@@ -191,29 +182,60 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar scroll-smooth">
            {currentView === View.TIMETABLE && <TimetableManager currentRole={currentRole} />}
            {currentView === View.TEACHERS && <TeacherManager currentRole={currentRole} />}
-           {currentView === View.REMARKS && <TeacherRemarks currentRole={currentRole} />}
-           {currentView === View.EXAMS && <ExamScheduler />}
-           {currentView === View.MEETINGS && <TeacherMeetingManager currentRole={currentRole} />}
-           {currentView === View.SETTINGS && <SettingsManager currentRole={currentRole} />}
+           {currentView === View.REMARKS && (
+               <>
+                 <TeacherRemarks currentRole={currentRole} />
+                 <div className="mt-8 pt-4 border-t dark:border-slate-800 flex justify-center opacity-30">
+                    <span className="text-[9px] font-black uppercase tracking-[0.3em]">Remarks Section • Made by Lucky</span>
+                 </div>
+               </>
+           )}
+           {currentView === View.EXAMS && (
+               <>
+                 <ExamScheduler />
+                 <div className="mt-8 pt-4 border-t dark:border-slate-800 flex justify-center opacity-30">
+                    <span className="text-[9px] font-black uppercase tracking-[0.3em]">Exam Section • Made by Lucky</span>
+                 </div>
+               </>
+           )}
+           {currentView === View.MEETINGS && (
+               <>
+                 <TeacherMeetingManager currentRole={currentRole} />
+                 <div className="mt-8 pt-4 border-t dark:border-slate-800 flex justify-center opacity-30">
+                    <span className="text-[9px] font-black uppercase tracking-[0.3em]">Meeting Section • Made by Lucky</span>
+                 </div>
+               </>
+           )}
+           {currentView === View.SETTINGS && (
+               <>
+                 <SettingsManager currentRole={currentRole} />
+                 <div className="mt-8 pt-4 border-t dark:border-slate-800 flex justify-center opacity-30">
+                    <span className="text-[9px] font-black uppercase tracking-[0.3em]">Settings Section • Made by Lucky</span>
+                 </div>
+               </>
+           )}
            {currentView === View.INSIGHTS && (
                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 md:p-12 text-center max-w-2xl mx-auto flex flex-col items-center">
                     <Sparkles className="w-12 h-12 text-purple-500 mb-4 animate-pulse" />
                     <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">School Workload Analysis</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-md">Our AI engine analyzes staff distribution and period density to ensure a balanced academic environment.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-md">AI engine analyzes staff distribution to ensure a balanced environment.</p>
                     {!aiReport ? (
-                        <button onClick={async () => { setIsAnalyzing(true); setAiReport(await geminiService.analyzeWorkload(dataService.getTeachers(), dataService.getSchedule())); setIsAnalyzing(false); }} disabled={isAnalyzing} className="bg-purple-600 text-white px-10 py-3.5 rounded-full font-bold hover:bg-purple-700 disabled:opacity-70 transition-all flex items-center gap-3 shadow-xl shadow-purple-200">
+                        <button onClick={async () => { setIsAnalyzing(true); setAiReport(await geminiService.analyzeWorkload(dataService.getTeachers(), dataService.getSchedule())); setIsAnalyzing(false); }} disabled={isAnalyzing} className="bg-purple-600 text-white px-10 py-3.5 rounded-full font-bold hover:bg-purple-700 disabled:opacity-70 transition-all flex items-center gap-3 shadow-xl">
                             {isAnalyzing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <Sparkles className="w-4 h-4" />}
                             {isAnalyzing ? "Analyzing Data..." : "Run AI Diagnostics"}
                         </button>
                     ) : (
-                        <div className="w-full text-left bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl p-6 md:p-8 border border-purple-100 dark:border-purple-800 text-sm prose dark:prose-invert prose-purple max-w-none shadow-inner" dangerouslySetInnerHTML={{__html: aiReport}} />
+                        <div className="w-full text-left bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl p-6 md:p-8 border border-purple-100 dark:border-purple-800 text-sm prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{__html: aiReport}} />
                     )}
+                    <div className="mt-12 opacity-30 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em]">
+                        Made by Lucky <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
+                    </div>
                </div>
            )}
         </div>
 
         <footer className="h-10 border-t dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] no-print">
-            Handcrafted for Silver Star Team <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
+            Handcrafted by Lucky <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
         </footer>
       </main>
     </div>

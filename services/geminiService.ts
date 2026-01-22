@@ -1,19 +1,50 @@
 
-import { GoogleGenAI } from "@google/genai";
-import { Teacher, ScheduleEntry } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { Teacher, ScheduleEntry, DAYS, PERIODS, ClassSection } from "../types";
 
-// Always initialize the client using the API key from environment variables.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// --- FIX: Changed schedule type to any[] to support accessing metadata properties like day, periodIndex, and classId ---
+export const generateWeeklyTimetable = async (teachers: Teacher[], classes: ClassSection[]) => {
+    try {
+        const prompt = `
+            You are an expert school administrator. Generate a weekly base timetable for "Silver Star Convent School".
+            Teachers: ${JSON.stringify(teachers.map(t => ({ id: t.id, name: t.name, subjects: t.subjectsTaught || [] })))}
+            Classes: ${JSON.stringify(classes.map(c => ({ id: c.id, name: c.name })))}
+            Days: ${JSON.stringify(DAYS)}
+            Periods: 7 total (indices 0, 1, 2, 4, 5, 6 are teaching periods, index 3 is LUNCH).
+
+            Rules:
+            1. No teacher can be in two classes in the same period.
+            2. Assign teachers to classes they are experts in (check their subjects).
+            3. Ensure a balanced distribution of subjects.
+            4. Monday to Saturday must be filled.
+            
+            Return ONLY a JSON object where keys are days (e.g., "Monday") and values are maps of "classId_periodIndex" to { teacherId, subject }.
+            Example: {"Monday": {"c6_0": {"teacherId": "t1", "subject": "Math"}}}
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json"
+            }
+        });
+
+        return JSON.parse(response.text);
+    } catch (error) {
+        console.error("AI Timetable Generation Error:", error);
+        throw error;
+    }
+};
+
 export const analyzeWorkload = async (teachers: Teacher[], schedule: any[]) => {
     try {
-        // Prepare a concise data summary for the AI
         const dataSummary = {
             teacherCount: teachers.length,
             teachers: teachers.map(t => ({ id: t.id, name: t.name })),
             scheduleCount: schedule.length,
-            scheduleSample: schedule.slice(0, 50).map(s => ({ // Send partial schedule to avoid token limits if massive
+            scheduleSample: schedule.slice(0, 50).map(s => ({ 
                 teacherId: s.teacherId,
                 day: s.day,
                 period: s.periodIndex,
@@ -28,33 +59,23 @@ export const analyzeWorkload = async (teachers: Teacher[], schedule: any[]) => {
             
             Data Summary: ${JSON.stringify(dataSummary)}
 
-            Please generate a **Comprehensive School Management Report** in structured HTML format (use <div>, <h3>, <ul>, <li>, <p> tags, use Tailwind classes for basic styling like 'text-brand-600', 'font-bold').
+            Please generate a **Comprehensive School Management Report** in structured HTML format.
+            Use Tailwind classes for styling (e.g., 'text-brand-600', 'font-bold').
             
-            The report should cover point-by-point:
-            
-            1.  **Workload Analysis**: Identify teachers who are overloaded (teaching too many consecutive periods) vs. underutilized.
-            2.  **Resource Optimization**: Suggestions on how to better distribute classes.
-            3.  **Substitution Strategy**: General advice on how to handle the current schedule's density when teachers are absent.
-            4.  **Operational Efficiency**: 3 Key actionable tips for the principal to improve school timing or management.
-            
-            Keep the tone professional, encouraging, and highly actionable. Do not output markdown backticks, just raw HTML.
+            The report should cover:
+            1. Workload Analysis (identify overloaded/underutilized staff).
+            2. Resource Optimization tips.
+            3. Operational Efficiency (3 actionable tips).
         `;
 
-        // Use 'gemini-3-flash-preview' for general text analysis tasks as per guidelines.
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
         });
 
-        // Use the .text property to extract the generated response.
         return response.text;
     } catch (error) {
         console.error("Gemini Analysis Error:", error);
-        return `
-            <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                <h3 class="font-bold">Analysis Unavailable</h3>
-                <p>Unable to generate the report at this time. Please check your internet connection or API key configuration.</p>
-            </div>
-        `;
+        return `<div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">Analysis Unavailable</div>`;
     }
 };

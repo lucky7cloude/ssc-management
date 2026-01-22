@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TeacherMeeting, UserRole } from '../types';
 import * as dataService from '../services/dataService';
@@ -105,7 +104,8 @@ export const TeacherMeetingManager: React.FC<Props> = ({ currentRole }) => {
         doc.text(splitNote, 20, 85);
 
         // Footer
-        const pageCount = doc.internal.getNumberOfPages();
+        // Use doc.getNumberOfPages() directly on the document instance
+        const pageCount = doc.getNumberOfPages();
         for(let i = 1; i <= pageCount; i++) {
             doc.setPage(i);
             doc.setFontSize(10);

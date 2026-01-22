@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Teacher, PREDEFINED_COLORS, ScheduleEntry, Substitution, UserRole } from '../types';
+import { Teacher, PREDEFINED_COLORS, UserRole } from '../types';
 import * as dataService from '../services/dataService';
-import { UserPlus, Trash2, User, X, Edit2, Check, CalendarDays, UserCheck, Lock } from 'lucide-react';
+import { UserPlus, Trash2, Edit2, Heart, BookOpen, X } from 'lucide-react';
 
 interface Props {
     currentRole: UserRole;
@@ -10,28 +10,39 @@ interface Props {
 
 export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [selectedColor, setSelectedColor] = useState(PREDEFINED_COLORS[0]);
-  const [editId, setEditId] = useState<string | null>(null);
-  
+  const [subjectInput, setSubjectInput] = useState('');
+  const [subjectsTaught, setSubjectsTaught] = useState<string[]>([]);
   const [todayDate, setTodayDate] = useState('');
-  const [todayDayName, setTodayDayName] = useState('');
   const [dailyAttendance, setDailyAttendance] = useState<Record<string, 'present' | 'absent'>>({});
-  const [subModalTeacher, setSubModalTeacher] = useState<Teacher | null>(null);
 
   useEffect(() => {
     setTeachers(dataService.getTeachers());
     const now = new Date();
     setTodayDate(now.toLocaleDateString('en-CA'));
-    setTodayDayName(now.toLocaleDateString('en-US', { weekday: 'long' }));
     setDailyAttendance(dataService.getAttendanceForDate(now.toLocaleDateString('en-CA')));
   }, []);
 
   const resetForm = () => {
     setEditId(null);
     setName('');
+    setSubjectsTaught([]);
+    setSubjectInput('');
     setSelectedColor(PREDEFINED_COLORS[Math.floor(Math.random() * PREDEFINED_COLORS.length)]);
   }
+
+  const addSubject = () => {
+      if (subjectInput.trim() && !subjectsTaught.includes(subjectInput.trim())) {
+          setSubjectsTaught([...subjectsTaught, subjectInput.trim()]);
+          setSubjectInput('');
+      }
+  };
+
+  const removeSubject = (sub: string) => {
+      setSubjectsTaught(subjectsTaught.filter(s => s !== sub));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +53,7 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
       name: name.trim(),
       initials: name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
       color: selectedColor,
+      subjectsTaught: subjectsTaught
     };
 
     setTeachers(dataService.saveTeacher(teacherData));
@@ -53,12 +65,13 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
     setEditId(teacher.id);
     setName(teacher.name);
     setSelectedColor(teacher.color);
+    setSubjectsTaught(teacher.subjectsTaught || []);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = (id: string) => {
     if (currentRole !== 'PRINCIPAL') return;
-    if (confirm('Are you sure? This will remove the teacher from all assignments.')) {
+    if (confirm('Are you sure?')) {
       setTeachers(dataService.deleteTeacher(id));
       if (editId === id) resetForm();
     }
@@ -72,86 +85,103 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
           else newState[teacher.id] = 'absent';
           return newState;
       });
-      if (status === 'absent') {
-          setSubModalTeacher(teacher);
-          dataService.addNotification(`${teacher.name} marked absent.`, 'absence');
-          window.dispatchEvent(new Event('notifications-updated'));
-      }
   };
 
   return (
     <div className="space-y-6">
       {currentRole === 'PRINCIPAL' && (
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 relative transition-colors">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-brand-600" />
-              {editId ? 'Edit Teacher Profile' : 'Add New Teacher'}
+              {editId ? 'Edit Teacher' : 'Add New Teacher'}
             </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex-1">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Full Name</label>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black text-white rounded-lg border border-slate-700 p-2.5 outline-none focus:ring-2 focus:ring-brand-500" placeholder="Enter teacher's name" required />
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Teacher Name</label>
+                            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full text-sm h-11" placeholder="e.g. Lucky" required />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Expert Subjects</label>
+                            <div className="flex gap-2 mb-2">
+                                <input 
+                                    type="text" 
+                                    value={subjectInput} 
+                                    onChange={(e) => setSubjectInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSubject())}
+                                    className="flex-1 text-sm h-11" 
+                                    placeholder="e.g. Mathematics" 
+                                />
+                                <button type="button" onClick={addSubject} className="px-4 bg-slate-800 text-white rounded-xl text-xs font-bold">Add</button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {subjectsTaught.map(s => (
+                                    <span key={s} className="bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-2 border border-brand-100 dark:border-brand-800">
+                                        {s} <X className="w-3 h-3 cursor-pointer" onClick={() => removeSubject(s)} />
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Theme Color</label>
-                        <div className="flex gap-2 flex-wrap items-center">
+                    <div className="space-y-4">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">Theme Color</label>
+                        <div className="flex gap-2 flex-wrap items-center bg-slate-50 dark:bg-black p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
                             {PREDEFINED_COLORS.map(c => (
-                                <button key={c} type="button" onClick={() => setSelectedColor(c)} className={`w-8 h-8 rounded-full border-2 ${selectedColor === c ? 'border-slate-800 dark:border-slate-100 scale-110 shadow-md' : 'border-transparent'}`} style={{ backgroundColor: c }} />
+                                <button key={c} type="button" onClick={() => setSelectedColor(c)} className={`w-8 h-8 rounded-full border-2 transition-transform ${selectedColor === c ? 'border-brand-500 scale-125 shadow-lg' : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: c }} />
                             ))}
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-end gap-3 pt-2">
-                    {editId && <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 font-bold">Cancel</button>}
-                    <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-lg font-bold shadow-sm">{editId ? 'Update' : 'Add Teacher'}</button>
+                <div className="flex justify-end gap-3 pt-4 border-t dark:border-slate-800">
+                    <button type="button" onClick={resetForm} className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-500">Cancel</button>
+                    <button type="submit" className="bg-brand-600 text-white px-10 py-2.5 rounded-xl font-bold uppercase tracking-widest shadow-lg">Save Profile</button>
                 </div>
             </form>
           </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {teachers.map(teacher => {
             const isAbsent = dailyAttendance[teacher.id] === 'absent';
             return (
-              <div key={teacher.id} className={`bg-white dark:bg-slate-900 rounded-xl p-4 border transition-all ${isAbsent ? 'border-red-200 dark:border-red-900/50 bg-red-50/20 dark:bg-red-950/20' : 'border-slate-100 dark:border-slate-800 shadow-sm'}`}>
+              <div key={teacher.id} className={`group bg-white dark:bg-slate-900 rounded-2xl p-4 border transition-all ${isAbsent ? 'border-red-500 bg-red-50/10' : 'border-slate-100 dark:border-slate-800'}`}>
                  <div className="flex items-center gap-4 mb-3">
-                     <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: teacher.color }}>{teacher.initials}</div>
-                     <div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 dark:text-slate-100 truncate">{teacher.name}</h3></div>
-                     <div className="flex gap-1">
-                        <button onClick={() => toggleAttendance(teacher, 'present')} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${!isAbsent ? 'bg-green-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600'}`}>P</button>
-                        <button onClick={() => toggleAttendance(teacher, 'absent')} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${isAbsent ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600'}`}>A</button>
+                     <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-inner" style={{ backgroundColor: teacher.color }}>{teacher.initials}</div>
+                     <div className="flex-1">
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 truncate text-sm">{teacher.name}</h3>
+                        <p className={`text-[9px] font-black uppercase ${isAbsent ? 'text-red-500' : 'text-green-500'}`}>{isAbsent ? 'Absent' : 'Present'}</p>
                      </div>
                  </div>
-                 <div className="flex items-center justify-between pt-3 border-t border-slate-50 dark:border-slate-800">
-                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">Teacher ID: {teacher.id.slice(-5)}</span>
-                     {currentRole === 'PRINCIPAL' && (
-                        <div className="flex gap-1">
-                            <button onClick={() => handleEdit(teacher)} className="p-1.5 text-slate-400 dark:text-slate-600 hover:text-brand-600 dark:hover:text-brand-400"><Edit2 className="w-4 h-4" /></button>
-                            <button onClick={() => handleDelete(teacher.id)} className="p-1.5 text-slate-400 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                     )}
+                 <div className="mb-4 min-h-[20px]">
+                    <div className="flex flex-wrap gap-1">
+                        {(teacher.subjectsTaught || []).slice(0, 3).map(s => (
+                            <span key={s} className="text-[8px] font-bold text-slate-400 bg-slate-50 dark:bg-slate-800 px-1.5 py-0.5 rounded">{s}</span>
+                        ))}
+                        {(teacher.subjectsTaught?.length || 0) > 3 && <span className="text-[8px] font-bold text-slate-400">+{teacher.subjectsTaught!.length - 3}</span>}
+                    </div>
                  </div>
+                 <div className="flex gap-2 mb-3">
+                    <button onClick={() => toggleAttendance(teacher, 'present')} className={`flex-1 h-8 rounded-lg text-[9px] font-black ${!isAbsent ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>PRESENT</button>
+                    <button onClick={() => toggleAttendance(teacher, 'absent')} className={`flex-1 h-8 rounded-lg text-[9px] font-black ${isAbsent ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>ABSENT</button>
+                 </div>
+                 {currentRole === 'PRINCIPAL' && (
+                    <div className="flex justify-end pt-2 border-t dark:border-slate-800 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleEdit(teacher)} className="p-2 text-slate-400 hover:text-brand-600"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleDelete(teacher.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                 )}
               </div>
             );
         })}
       </div>
 
-      {subModalTeacher && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border dark:border-slate-800">
-                  <div className="bg-red-600 p-4 flex justify-between items-center text-white">
-                      <h3 className="font-bold">Assign Substitute for {subModalTeacher.name}</h3>
-                      <button onClick={() => setSubModalTeacher(null)}><X className="w-5 h-5"/></button>
-                  </div>
-                  <div className="p-4 bg-slate-50 dark:bg-black text-xs font-bold text-slate-500 dark:text-slate-400 text-center">Redirecting to Timetable to manage replacements...</div>
-                  <div className="p-6 text-center">
-                      <p className="text-slate-600 dark:text-slate-300 mb-4 text-sm">You have marked this teacher as absent. Please visit the Timetable section for today to manage periods and assign available substitutes.</p>
-                      <button onClick={() => setSubModalTeacher(null)} className="w-full bg-slate-800 dark:bg-brand-600 text-white py-2.5 rounded-lg font-bold hover:opacity-90 transition-opacity">OK, I understand</button>
-                  </div>
-              </div>
-          </div>
-      )}
+      <div className="pt-10 flex flex-col items-center opacity-30">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
+            <span>Made by Lucky</span>
+            <Heart className="w-3 h-3 text-red-500 fill-current" />
+        </div>
+      </div>
     </div>
   );
 };

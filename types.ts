@@ -1,31 +1,48 @@
 
 export type UserRole = 'PRINCIPAL' | 'MANAGEMENT';
 
+export const SCHOOL_LOGO_URL = 'https://aggressive-green-y4tc5do8ng.edgeone.app/IMG-20260116-WA0029-removebg-preview.png';
+
 export interface Teacher {
   id: string;
   name: string;
   initials: string;
   color: string;
+  subject?: string;
+  subjectsTaught?: string[]; // Added for smarter generation
+  qualification?: string;
+  phone?: string;
+  email?: string;
+  joiningDate?: string;
 }
 
 export interface ClassSection {
   id: string;
   name: string;
+  section: 'SECONDARY' | 'SENIOR_SECONDARY';
 }
 
 export interface ScheduleEntry {
-  teacherId: string;
-  subject: string;
+  teacherId?: string;
+  subject?: string;
+  note?: string;
   isSplit?: boolean;
   splitTeacherId?: string;
   splitSubject?: string;
+  isMerged?: boolean;
+  mergedClassIds?: string[];
 }
 
 export interface DailyOverride {
-  subTeacherId: string;
-  subSubject: string;
+  subTeacherId?: string;
+  subSubject?: string;
+  subNote?: string;
   originalTeacherId: string;
-  type: 'SUBSTITUTION' | 'EVENT' | 'VACANT';
+  type: 'SUBSTITUTION' | 'EVENT' | 'VACANT' | 'SPLIT' | 'MERGED';
+  isSplit?: boolean;
+  splitTeacherId?: string;
+  splitSubject?: string;
+  mergedClassIds?: string[];
 }
 
 export interface Substitution {
@@ -53,6 +70,7 @@ export interface ExamSchedule {
   date: string;
   startTime: string;
   endTime: string;
+  invigilatorId?: string; // Enhanced with teacher duty
 }
 
 export interface TeacherMeeting {

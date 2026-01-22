@@ -12,8 +12,8 @@ const MEETINGS_KEY = PREFIX + 'meetings';
 const ATTENDANCE_KEY = PREFIX + 'attendance';
 const NOTIFICATIONS_KEY = PREFIX + 'notifications';
 const TIMETABLE_NOTES_KEY = PREFIX + 'timetable_notes';
+const TEACHER_INSTRUCTIONS_KEY = PREFIX + 'teacher_instructions';
 
-// Safe JSON Parse Helper
 const safeParse = (key: string, fallback: any) => {
     try {
         const data = localStorage.getItem(key);
@@ -45,6 +45,10 @@ export const getEffectiveSchedule = (dateStr: string, dayName: string) => {
 export const getBaseSchedule = (dayName: string): Record<string, ScheduleEntry> => {
     const allBases = safeParse(BASE_SCHEDULE_KEY, {});
     return allBases[dayName] || {};
+};
+
+export const bulkSaveBaseSchedule = (fullSchedule: Record<string, Record<string, ScheduleEntry>>) => {
+    localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(fullSchedule));
 };
 
 export const getSchedule = (): any[] => {
@@ -91,8 +95,20 @@ export const saveBaseEntry = (dayName: string, classId: string, periodIndex: num
     const allBases = safeParse(BASE_SCHEDULE_KEY, {});
     if (!allBases[dayName]) allBases[dayName] = {};
     const key = `${classId}_${periodIndex}`;
-    if (entry) allBases[dayName][key] = entry;
-    else delete allBases[dayName][key];
+    
+    if (entry) {
+        allBases[dayName][key] = entry;
+        // Batch assignment for merged classes
+        if (entry.mergedClassIds?.length) {
+            entry.mergedClassIds.forEach(mId => {
+                const mKey = `${mId}_${periodIndex}`;
+                allBases[dayName][mKey] = { ...entry, mergedClassIds: [classId, ...entry.mergedClassIds.filter(id => id !== mId)] };
+            });
+        }
+    } else {
+        delete allBases[dayName][key];
+    }
+    
     localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(allBases));
     return allBases[dayName];
 };
@@ -106,16 +122,22 @@ export const saveDailyOverride = (dateStr: string, classId: string, periodIndex:
     const allOverrides = safeParse(OVERRIDES_KEY, {});
     if (!allOverrides[dateStr]) allOverrides[dateStr] = {};
     const key = `${classId}_${periodIndex}`;
-    if (override) allOverrides[dateStr][key] = override;
-    else delete allOverrides[dateStr][key];
+    
+    if (override) {
+        allOverrides[dateStr][key] = override;
+        // Batch assignment for merged classes
+        if (override.mergedClassIds?.length) {
+            override.mergedClassIds.forEach(mId => {
+                const mKey = `${mId}_${periodIndex}`;
+                allOverrides[dateStr][mKey] = { ...override, mergedClassIds: [classId, ...override.mergedClassIds.filter(id => id !== mId)] };
+            });
+        }
+    } else {
+        delete allOverrides[dateStr][key];
+    }
+    
     localStorage.setItem(OVERRIDES_KEY, JSON.stringify(allOverrides));
     return allOverrides[dateStr];
-};
-
-export const resetDailyOverrides = (dateStr: string) => {
-    const allOverrides = safeParse(OVERRIDES_KEY, {});
-    delete allOverrides[dateStr];
-    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(allOverrides));
 };
 
 export const getTeachers = (): Teacher[] => {
@@ -139,72 +161,104 @@ export const deleteTeacher = (id: string) => {
 
 export const getClasses = (): ClassSection[] => {
   const DEFAULT_CLASSES: ClassSection[] = [
-    { id: 'c6', name: 'Class 6' },
-    { id: 'c7', name: 'Class 7' },
-    { id: 'c8', name: 'Class 8' },
-    { id: 'c9', name: 'Class 9' },
-    { id: 'c10', name: 'Class 10' },
+    { id: 'c6', name: 'Class 6', section: 'SECONDARY' },
+    { id: 'c7', name: 'Class 7', section: 'SECONDARY' },
+    { id: 'c8', name: 'Class 8', section: 'SECONDARY' },
+    { id: 'c9', name: 'Class 9', section: 'SECONDARY' },
+    { id: 'c10', name: 'Class 10', section: 'SECONDARY' },
+    { id: 'c11s', name: '11th Science', section: 'SENIOR_SECONDARY' },
+    { id: 'c11c', name: '11th Commerce', section: 'SENIOR_SECONDARY' },
+    { id: 'c12s', name: '12th Science', section: 'SENIOR_SECONDARY' },
+    { id: 'c12c', name: '12th Commerce', section: 'SENIOR_SECONDARY' },
   ];
   return safeParse(CLASSES_KEY, DEFAULT_CLASSES);
 };
 
-export const addClass = (name: string): ClassSection[] => {
-  const classes = getClasses();
-  classes.push({ id: Date.now().toString(), name });
-  localStorage.setItem(CLASSES_KEY, JSON.stringify(classes));
-  return classes;
+export const saveClasses = (classes: ClassSection[]) => {
+    localStorage.setItem(CLASSES_KEY, JSON.stringify(classes));
+    return classes;
 }
 
-export const deleteClass = (id: string): ClassSection[] => {
-  let classes = getClasses().filter(c => c.id !== id);
-  localStorage.setItem(CLASSES_KEY, JSON.stringify(classes));
-  return classes;
+export const deleteClass = (classId: string) => {
+    // 1. Remove from class list
+    const classes = getClasses().filter(c => c.id !== classId);
+    saveClasses(classes);
+    
+    // 2. Cleanup Base Schedule
+    const allBases = safeParse(BASE_SCHEDULE_KEY, {});
+    Object.keys(allBases).forEach(day => {
+        const daySchedule = allBases[day];
+        if (daySchedule && typeof daySchedule === 'object') {
+            Object.keys(daySchedule).forEach(key => {
+                // Remove direct entries
+                if (key.startsWith(`${classId}_`)) {
+                    delete daySchedule[key];
+                } else {
+                    // Remove merged references in other classes
+                    const entry = daySchedule[key];
+                    if (entry && entry.mergedClassIds) {
+                        entry.mergedClassIds = entry.mergedClassIds.filter((id: string) => id !== classId);
+                        if (entry.mergedClassIds.length === 0) delete entry.mergedClassIds;
+                    }
+                }
+            });
+        }
+    });
+    localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(allBases));
+
+    // 3. Cleanup Daily Overrides
+    const allOverrides = safeParse(OVERRIDES_KEY, {});
+    Object.keys(allOverrides).forEach(date => {
+        const dateOverrides = allOverrides[date];
+        if (dateOverrides && typeof dateOverrides === 'object') {
+            Object.keys(dateOverrides).forEach(key => {
+                // Remove direct entries
+                if (key.startsWith(`${classId}_`)) {
+                    delete dateOverrides[key];
+                } else {
+                    // Remove merged references in other classes
+                    const entry = dateOverrides[key];
+                    if (entry && entry.mergedClassIds) {
+                        entry.mergedClassIds = entry.mergedClassIds.filter((id: string) => id !== classId);
+                        if (entry.mergedClassIds.length === 0) delete entry.mergedClassIds;
+                    }
+                }
+            });
+        }
+    });
+    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(allOverrides));
+    
+    return classes;
 }
 
-export const reorderClasses = (newClasses: ClassSection[]): ClassSection[] => {
-  localStorage.setItem(CLASSES_KEY, JSON.stringify(newClasses));
-  return newClasses;
-}
-
-export const getRemarks = (): TeacherRemark[] => {
-  return safeParse(REMARKS_KEY, []);
-};
-
-export const addRemark = (remark: TeacherRemark): TeacherRemark[] => {
+export const getRemarks = (): TeacherRemark[] => safeParse(REMARKS_KEY, []);
+export const addRemark = (remark: TeacherRemark) => {
   const remarks = getRemarks();
   remarks.push(remark);
   localStorage.setItem(REMARKS_KEY, JSON.stringify(remarks));
   return remarks;
 };
-
-export const deleteRemark = (id: string): TeacherRemark[] => {
+export const deleteRemark = (id: string) => {
   const remarks = getRemarks().filter(r => r.id !== id);
   localStorage.setItem(REMARKS_KEY, JSON.stringify(remarks));
   return remarks;
 };
 
-export const getExams = (): ExamSchedule[] => {
-  return safeParse(EXAMS_KEY, []);
-};
-
-export const addExam = (exam: ExamSchedule): ExamSchedule[] => {
+export const getExams = (): ExamSchedule[] => safeParse(EXAMS_KEY, []);
+export const addExam = (exam: ExamSchedule) => {
   const exams = getExams();
   exams.push(exam);
   localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
   return exams;
 };
-
-export const deleteExam = (id: string): ExamSchedule[] => {
+export const deleteExam = (id: string) => {
   const exams = getExams().filter(e => e.id !== id);
   localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
   return exams;
 };
 
-export const getMeetings = (): TeacherMeeting[] => {
-    return safeParse(MEETINGS_KEY, []);
-};
-
-export const saveMeeting = (meeting: TeacherMeeting): TeacherMeeting[] => {
+export const getMeetings = (): TeacherMeeting[] => safeParse(MEETINGS_KEY, []);
+export const saveMeeting = (meeting: TeacherMeeting) => {
     const meetings = getMeetings();
     const index = meetings.findIndex(m => m.id === meeting.id);
     if (index >= 0) meetings[index] = meeting;
@@ -212,20 +266,14 @@ export const saveMeeting = (meeting: TeacherMeeting): TeacherMeeting[] => {
     localStorage.setItem(MEETINGS_KEY, JSON.stringify(meetings));
     return meetings;
 };
-
-export const deleteMeeting = (id: string): TeacherMeeting[] => {
+export const deleteMeeting = (id: string) => {
     const meetings = getMeetings().filter(m => m.id !== id);
     localStorage.setItem(MEETINGS_KEY, JSON.stringify(meetings));
     return meetings;
 };
 
-export const getAttendanceData = (): Record<string, Record<string, 'present' | 'absent'>> => {
-    return safeParse(ATTENDANCE_KEY, {});
-};
-
-export const getAttendanceForDate = (dateStr: string): Record<string, 'present' | 'absent'> => 
-    getAttendanceData()[dateStr] || {};
-
+export const getAttendanceData = (): Record<string, Record<string, 'present' | 'absent'>> => safeParse(ATTENDANCE_KEY, {});
+export const getAttendanceForDate = (dateStr: string) => getAttendanceData()[dateStr] || {};
 export const markTeacherAttendance = (dateStr: string, teacherId: string, status: 'present' | 'absent') => {
     const allData = getAttendanceData();
     if (!allData[dateStr]) allData[dateStr] = {};
@@ -235,35 +283,26 @@ export const markTeacherAttendance = (dateStr: string, teacherId: string, status
     return allData[dateStr];
 };
 
-export const getNotifications = (): AppNotification[] => {
-    return safeParse(NOTIFICATIONS_KEY, []);
-};
-
+export const getNotifications = (): AppNotification[] => safeParse(NOTIFICATIONS_KEY, []);
 export const addNotification = (message: string, type: 'absence' | 'system' = 'system') => {
     const notifications = getNotifications();
-    const newNotif: AppNotification = { 
-        id: Date.now().toString(), 
-        message, 
-        date: new Date().toLocaleString(), 
-        type, 
-        read: false 
-    };
+    const newNotif: AppNotification = { id: Date.now().toString(), message, date: new Date().toLocaleString(), type, read: false };
     notifications.unshift(newNotif);
     if(notifications.length > 50) notifications.pop();
     localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
     return notifications;
 };
-
-export const clearNotifications = () => { 
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify([])); 
-    return []; 
-}
-
-export const getTimetableNote = (date: string): string => 
-    safeParse(TIMETABLE_NOTES_KEY, {})[date] || "";
-
+export const clearNotifications = () => { localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify([])); return []; }
+export const getTimetableNote = (date: string): string => safeParse(TIMETABLE_NOTES_KEY, {})[date] || "";
 export const saveTimetableNote = (date: string, note: string) => {
     const notes = safeParse(TIMETABLE_NOTES_KEY, {});
     notes[date] = note;
     localStorage.setItem(TIMETABLE_NOTES_KEY, JSON.stringify(notes));
+}
+
+export const getTeacherInstructions = (date: string): string => safeParse(TEACHER_INSTRUCTIONS_KEY, {})[date] || "";
+export const saveTeacherInstructions = (date: string, instructions: string) => {
+    const all = safeParse(TEACHER_INSTRUCTIONS_KEY, {});
+    all[date] = instructions;
+    localStorage.setItem(TEACHER_INSTRUCTIONS_KEY, JSON.stringify(all));
 }
