@@ -2,11 +2,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ClassSection, PERIODS, Teacher, UserRole, ScheduleEntry, DailyOverride, SCHOOL_LOGO_URL, DAYS } from '../types';
 import * as dataService from '../services/dataService';
-import * as geminiService from '../services/geminiService';
 import { 
   ChevronRight, ChevronLeft, X, Users, Edit3, AlertTriangle, FileText, 
   UserCheck, Search, ListChecks, Heart, MessageCircleWarning, Calendar, 
-  Layout, Plus, Trash2, Layers, Repeat, Info, Download, Share2, ClipboardList, UserMinus, Sparkles, Wand2, RefreshCw
+  Layout, Plus, Trash2, Layers, Repeat, Info, Download, Share2, ClipboardList, UserMinus
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -33,7 +32,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const [dailyAttendance, setDailyAttendance] = useState<Record<string, 'present' | 'absent'>>({});
   const [activeSection, setActiveSection] = useState<TimetableSection>('SECONDARY');
   const [teacherInstructions, setTeacherInstructions] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,22 +74,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const refreshData = (date: string, day: string) => {
     setScheduleData(timetableMode === 'BASE' ? dataService.getBaseSchedule(day) : dataService.getEffectiveSchedule(date, day));
     setDailyAttendance(dataService.getAttendanceForDate(date));
-  };
-
-  const handleMagicGenerate = async () => {
-      if (!confirm("This will replace your entire BASE weekly schedule with AI-generated data. Continue?")) return;
-      
-      setIsGenerating(true);
-      try {
-          const newSchedule = await geminiService.generateWeeklyTimetable(teachers, classes);
-          dataService.bulkSaveBaseSchedule(newSchedule);
-          refreshData(selectedDate, selectedDayName);
-          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "AI Weekly Schedule Generated!", type: 'success' } }));
-      } catch (err) {
-          alert("Failed to generate schedule. Ensure your API key is active.");
-      } finally {
-          setIsGenerating(false);
-      }
   };
 
   const adjustDate = (days: number) => {
@@ -317,16 +299,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             <button onClick={() => setActiveSection('SENIOR_SECONDARY')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeSection === 'SENIOR_SECONDARY' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Sr. Secondary (11-12)</button>
         </div>
         <div className="flex items-center gap-2">
-            {timetableMode === 'BASE' && currentRole === 'PRINCIPAL' && (
-                <button 
-                    onClick={handleMagicGenerate} 
-                    disabled={isGenerating}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-brand-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
-                >
-                    {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    {isGenerating ? "Generating..." : "Magic Auto-Fill"}
-                </button>
-            )}
             <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-black shadow-lg transition-all"><Share2 className="w-4 h-4" /> Share Date Sheet</button>
         </div>
       </div>
@@ -347,15 +319,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       </div>
 
       <div ref={timetableRef} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 p-4 relative overflow-hidden">
-        {isGenerating && (
-            <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-                <div className="text-center">
-                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest">AI is planning your week</h3>
-                    <p className="text-sm text-slate-500 font-medium">Arranging teachers and optimized periods...</p>
-                </div>
-            </div>
-        )}
         <div className="overflow-x-auto custom-scrollbar">
             <div className="grid divide-x dark:divide-slate-800 min-w-[900px]" style={{ gridTemplateColumns: `60px repeat(${sectionClasses.length || 1}, 1fr)` }}>
                 <div className="bg-slate-50 dark:bg-slate-950 p-3 text-[9px] font-black uppercase text-center sticky left-0 z-20 border-b dark:border-slate-800">PRD</div>

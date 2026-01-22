@@ -6,9 +6,8 @@ import { TeacherRemarks } from './components/TeacherRemarks';
 import { ExamScheduler } from './components/ExamScheduler';
 import { TeacherMeetingManager } from './components/TeacherMeeting';
 import { SettingsManager } from './components/Settings';
-import { Calendar, Users, BarChart3, GraduationCap, Sparkles, FileSignature, Clock, Heart, CheckCircle2, Bell, LogOut, Lock, Shield, X, KeyRound, ChevronRight, ClipboardList, Menu, Settings as SettingsIcon, Moon, Sun } from 'lucide-react';
+import { Calendar, Users, BarChart3, GraduationCap, FileSignature, Clock, Heart, CheckCircle2, Bell, LogOut, Lock, Shield, X, KeyRound, ChevronRight, ClipboardList, Menu, Settings as SettingsIcon, Moon, Sun } from 'lucide-react';
 import * as dataService from './services/dataService';
-import * as geminiService from './services/geminiService';
 import { UserRole, AppNotification, SCHOOL_LOGO_URL } from './types';
 
 enum View {
@@ -17,7 +16,6 @@ enum View {
   REMARKS = 'REMARKS',
   EXAMS = 'EXAMS',
   MEETINGS = 'MEETINGS',
-  INSIGHTS = 'INSIGHTS',
   SETTINGS = 'SETTINGS'
 }
 
@@ -26,8 +24,6 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.TIMETABLE);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiReport, setAiReport] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [selectedRoleForLogin, setSelectedRoleForLogin] = useState<UserRole | null>(null);
@@ -137,7 +133,6 @@ const App: React.FC = () => {
           <NavButton view={View.REMARKS} icon={FileSignature} label="Remarks" />
           <NavButton view={View.EXAMS} icon={Clock} label="Exams" />
           <NavButton view={View.MEETINGS} icon={ClipboardList} label="Meetings" />
-          <NavButton view={View.INSIGHTS} icon={Sparkles} label="Workload AI" />
           <NavButton view={View.SETTINGS} icon={SettingsIcon} label="Settings" />
         </nav>
         <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-2">
@@ -156,7 +151,6 @@ const App: React.FC = () => {
                 {currentView === View.REMARKS && 'Performance Logs'}
                 {currentView === View.EXAMS && 'Exam Planner'}
                 {currentView === View.MEETINGS && 'Staff Meetings'}
-                {currentView === View.INSIGHTS && 'Analytics Engine'}
                 {currentView === View.SETTINGS && 'System Settings'}
               </h2>
            </div>
@@ -213,24 +207,6 @@ const App: React.FC = () => {
                     <span className="text-[9px] font-black uppercase tracking-[0.3em]">Settings Section • Made by Lucky</span>
                  </div>
                </>
-           )}
-           {currentView === View.INSIGHTS && (
-               <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 md:p-12 text-center max-w-2xl mx-auto flex flex-col items-center">
-                    <Sparkles className="w-12 h-12 text-purple-500 mb-4 animate-pulse" />
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">School Workload Analysis</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-md">AI engine analyzes staff distribution to ensure a balanced environment.</p>
-                    {!aiReport ? (
-                        <button onClick={async () => { setIsAnalyzing(true); setAiReport(await geminiService.analyzeWorkload(dataService.getTeachers(), dataService.getSchedule())); setIsAnalyzing(false); }} disabled={isAnalyzing} className="bg-purple-600 text-white px-10 py-3.5 rounded-full font-bold hover:bg-purple-700 disabled:opacity-70 transition-all flex items-center gap-3 shadow-xl">
-                            {isAnalyzing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <Sparkles className="w-4 h-4" />}
-                            {isAnalyzing ? "Analyzing Data..." : "Run AI Diagnostics"}
-                        </button>
-                    ) : (
-                        <div className="w-full text-left bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl p-6 md:p-8 border border-purple-100 dark:border-purple-800 text-sm prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{__html: aiReport}} />
-                    )}
-                    <div className="mt-12 opacity-30 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em]">
-                        Made by Lucky <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
-                    </div>
-               </div>
            )}
         </div>
 
