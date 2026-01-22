@@ -1,7 +1,7 @@
 
 export type UserRole = 'PRINCIPAL' | 'MANAGEMENT';
 
-export const SCHOOL_LOGO_URL = 'https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png';
+export const SCHOOL_LOGO_URL = 'https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png';
 
 export interface Teacher {
   id: string;

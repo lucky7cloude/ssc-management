@@ -67,7 +67,7 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
 
     try {
         await dataService.saveTeacher(teacherData);
-        // dataService now triggers 'data-updated', which calls loadData via our useEffect
+        // dataService now triggers 'data-updated' event which calls loadData locally
         resetForm();
         window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Profile Saved Successfully", type: 'success' } }));
     } catch (err) {
@@ -246,8 +246,8 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
       </div>
 
       <div className="pt-12 pb-6 flex flex-col items-center opacity-30">
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">
-            <span>Verified S.S.C.S Database Registry</span>
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 text-center">
+            <span>SSC-MANAGEMENT REGISTRY • Made by lucky</span>
             <Heart className="w-3 h-3 text-red-500 fill-current" />
         </div>
       </div>

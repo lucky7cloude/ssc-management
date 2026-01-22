@@ -105,7 +105,7 @@ export const SettingsManager: React.FC<Props> = ({ currentRole }) => {
                     </div>
 
                     <div className="bg-slate-100 dark:bg-slate-900 p-5 rounded-2xl text-center border dark:border-slate-800">
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">S.S.C.S. Live Core Engine • Version 5.1.0-Cloud</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">SSC-MANAGEMENT • Made by lucky</p>
                     </div>
                 </div>
             </div>

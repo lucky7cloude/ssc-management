@@ -69,7 +69,10 @@ const App: React.FC = () => {
     }, 30000);
 
     const handleSyncStatus = (e: any) => setSyncStatus(e.detail);
-    const handleDataUpdated = () => setLastSyncTime('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const handleDataUpdated = () => {
+        setLastSyncTime('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        setNotifications(dataService.getNotifications());
+    };
 
     window.addEventListener('sync-status' as any, handleSyncStatus);
     window.addEventListener('data-updated', handleDataUpdated);
@@ -126,7 +129,7 @@ const App: React.FC = () => {
               <div className="mb-8 flex flex-col items-center animate-fade-in text-center">
                  <div className="w-24 h-24 mb-4"><img src={SCHOOL_LOGO_URL} alt="Logo" className="w-full h-full object-contain" /></div>
                  <h1 className="text-3xl font-serif font-bold text-slate-800 dark:text-slate-100">Silver Star</h1>
-                 <p className="text-slate-500 dark:text-slate-400 font-medium tracking-widest uppercase text-[10px] mt-1">Shared Management Portal • v5.0 Cloud</p>
+                 <p className="text-slate-500 dark:text-slate-400 font-medium tracking-widest uppercase text-[10px] mt-1">SSC-MANAGEMENT • Made by lucky</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-xl">
                   <button onClick={() => handleRoleSelect('PRINCIPAL')} className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-brand-500 transition-all flex flex-col items-center text-center group">
@@ -233,8 +236,11 @@ const App: React.FC = () => {
            {currentView === View.SETTINGS && <SettingsManager currentRole={currentRole} />}
         </div>
 
-        <footer className="h-10 border-t dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] no-print">
-            S.S.C.S. Cloud Core v5.1 • Active <Heart className="w-2 h-2 text-red-500 fill-current" />
+        <footer className="h-12 border-t dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-[8px] font-black text-slate-400 uppercase no-print">
+            <div className="flex items-center gap-2 tracking-[0.4em]">
+                SSC-MANAGEMENT • Active <Heart className="w-2 h-2 text-red-500 fill-current" />
+            </div>
+            <div className="tracking-[0.1em] mt-0.5 opacity-60">Made by lucky</div>
         </footer>
       </main>
     </div>
