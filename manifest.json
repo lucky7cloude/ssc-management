@@ -1,9 +1,10 @@
 
 {
+  "id": "com.silverstar.management",
   "name": "Silver Star Management",
   "short_name": "Silver Star",
-  "description": "School Management System for Silver Star Convent School",
-  "start_url": "/",
+  "description": "Comprehensive school management and timetable system for Silver Star Convent School.",
+  "start_url": "/?source=pwa",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0c4a6e",
@@ -12,9 +13,34 @@
   "icons": [
     {
       "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "384x384",
+      "type": "image/png"
     },
     {
       "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
@@ -27,6 +53,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Timetable View"
+    },
+    {
+      "src": "https://img.sanishtech.com/u/cf1c483bc2936b95b1af2353b0c49246.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop Dashboard"
     }
   ]
 }
