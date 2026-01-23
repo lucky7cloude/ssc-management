@@ -289,7 +289,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   const renderCell = (classId: string, periodIndex: number) => {
     const isLunch = PERIODS[periodIndex].start === "11:15 AM";
-    if (isLunch) return <div className="h-full w-full bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase border dark:border-slate-800/50 rounded-lg">Lunch</div>;
+    if (isLunch) return <div className="h-full w-full bg-slate-100 dark:bg-slate-900/50 flex items-center justify-center text-[9px] text-slate-400 font-black uppercase border dark:border-slate-800/50 rounded-lg">Lunch</div>;
     
     const key = `${classId}_${periodIndex}`;
     const entry = scheduleData[key];
@@ -315,7 +315,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         if (!entry.teacherId && !entry.subTeacherId && entry.note) {
             return (
                 <div onClick={() => handleCellClick(classId, periodIndex)} className="h-full w-full p-2 bg-amber-50/40 dark:bg-amber-900/10 border-l-4 border-amber-400 rounded-xl cursor-pointer flex flex-col justify-center hover:bg-amber-100/50 dark:hover:bg-amber-900/20 transition-all">
-                    <div className="text-[9px] font-black text-amber-700 uppercase tracking-tighter mb-0.5">SELF STUDY</div>
+                    <div className="text-[9px] font-black text-amber-700 uppercase tracking-tighter mb-0.5 leading-none">FREE</div>
                     <div className="text-[8px] italic text-slate-500 truncate leading-tight">{entry.note}</div>
                 </div>
             );
@@ -337,7 +337,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         return (
             <div onClick={() => handleCellClick(classId, periodIndex)} className={`h-full w-full p-2 border-l-4 rounded-xl cursor-pointer shadow-sm relative group flex flex-col justify-center transition-all ${isCurrentlyAbsent ? 'bg-red-500/10 border-red-500 ring-2 ring-red-500/20' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'} ${isSubstituted ? 'bg-brand-50/40 dark:bg-brand-900/10 ring-1 ring-brand-500/20' : ''}`} style={{ borderLeftColor: isCurrentlyAbsent ? '#ef4444' : (t?.color || '#ccc') }}>
                 <div className="font-black text-[10px] truncate leading-tight mb-0.5">{entry.subSubject || entry.subject}</div>
-                <div className={`text-[9px] truncate leading-tight font-bold ${isCurrentlyAbsent ? 'text-red-600' : 'text-slate-500'}`}>{t?.name || 'Unassigned'}</div>
+                <div className={`text-[9px] truncate leading-tight font-bold ${isCurrentlyAbsent ? 'text-red-600' : 'text-slate-500'}`}>{t?.name || 'Vacant'}</div>
                 {entry.mergedClassIds && <Layers className="w-2.5 h-2.5 text-slate-300 absolute top-1 right-1" />}
                 {isCurrentlyAbsent && <MessageCircleWarning className="w-3 h-3 text-red-500 absolute top-1 right-1 animate-pulse" />}
                 {isSubstituted && <UserCheck className="w-2.5 h-2.5 text-brand-500 absolute bottom-1 right-1" />}
@@ -350,8 +350,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   return (
     <div className="space-y-6">
-      {/* Premium Date & Mode Island */}
-      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between no-print bg-white dark:bg-slate-900 p-4 rounded-[2rem] shadow-xl border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-xl">
+      {/* Premium Interactive Date Island */}
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between no-print bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] shadow-xl border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-xl">
         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
             <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl border dark:border-slate-700/50 shadow-inner">
                 <button onClick={() => setTimetableMode('DAILY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${timetableMode === 'DAILY' ? 'bg-white dark:bg-slate-800 text-brand-600 shadow-lg scale-[1.05]' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}><CalendarIcon className="w-4 h-4" /> Daily</button>
@@ -399,7 +399,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       </div>
 
       {unfilledAbsentPeriods.length > 0 && (
-          <div className="bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800 p-5 rounded-[2.5rem] flex items-center justify-between no-print animate-bounce-slow">
+          <div className="bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800 p-5 rounded-[2.5rem] flex items-center justify-between no-print animate-pop-in">
               <div className="flex items-center gap-5">
                   <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-3xl shadow-sm"><MessageCircleWarning className="w-8 h-8 text-red-600" /></div>
                   <div>
@@ -414,7 +414,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
           </div>
       )}
 
-      {/* Main Grid: Precise & Aesthetic */}
+      {/* Main Timetable Grid */}
       <div ref={timetableRef} className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-sm border border-slate-200/60 dark:border-slate-800/60 p-6 relative overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
             <div className="grid divide-x dark:divide-slate-800 min-w-[1000px] border-l dark:border-slate-800 rounded-3xl overflow-hidden shadow-inner bg-slate-50/30 dark:bg-black/20" style={{ gridTemplateColumns: `80px repeat(${sectionClasses.length || 1}, 1fr)` }}>
@@ -450,10 +450,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         </div>
 
         {/* Improved Instruction & Availability Feed */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-10 border-t dark:border-slate-800 pt-10">
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-10 border-t dark:border-slate-800 pt-10 px-2">
             <div className="space-y-5">
                 <div className="flex items-center justify-between px-3">
-                    <h4 className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-500"><ClipboardList className="w-5 h-5 text-brand-600" /> Principal's Dispatch</h4>
+                    <h4 className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-500"><ClipboardList className="w-5 h-5 text-brand-600" /> Principal Dispatch</h4>
                     {currentRole === 'PRINCIPAL' && <button onClick={saveInstructions} className="flex items-center gap-2 text-[10px] font-black text-white bg-brand-600 px-5 py-2 rounded-xl hover:bg-brand-700 transition-all shadow-lg active:scale-95"><Save className="w-4 h-4" /> Save Feed</button>}
                 </div>
                 {currentRole === 'PRINCIPAL' ? (
@@ -461,19 +461,19 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                         value={teacherInstructions} 
                         onChange={(e) => setTeacherInstructions(e.target.value)} 
                         placeholder="Public instructions for staff today... (e.g., 'Late marks after 9:15 AM', 'Assembly at Play Area')" 
-                        rows={7} 
+                        rows={6} 
                         className="w-full text-sm font-bold p-6 bg-slate-50 dark:bg-black border border-slate-200 dark:border-slate-800 rounded-[2.5rem] focus:ring-8 ring-brand-500/5 transition-all placeholder:font-medium shadow-inner outline-none" 
                     />
                 ) : (
-                    <div className="w-full min-h-[160px] text-sm bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-7 italic text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed shadow-inner">
+                    <div className="w-full min-h-[140px] text-sm bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-7 italic text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed shadow-inner">
                         {teacherInstructions || "The Principal's Office has no additional dispatches for today's session."}
                     </div>
                 )}
             </div>
             
             <div className="space-y-5">
-                <h4 className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-500 px-3"><UserCheck className="w-5 h-5 text-green-600" /> Deployment Feed</h4>
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-8 max-h-[300px] overflow-y-auto custom-scrollbar shadow-inner">
+                <h4 className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-500 px-3"><UserCheck className="w-5 h-5 text-green-600" /> Availability Radar</h4>
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-8 max-h-[280px] overflow-y-auto custom-scrollbar shadow-inner">
                     {unfilledAbsentPeriods.length > 0 && (
                         <div className="mb-8 bg-red-100/60 dark:bg-red-900/20 p-5 rounded-3xl border border-red-200 dark:border-red-800 shadow-sm animate-pulse">
                              <h5 className="text-[11px] font-black text-red-600 uppercase mb-4 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Priority Deployments</h5>
@@ -491,7 +491,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2 items-center">
-                                                <span className="text-[10px] font-black text-slate-400 group-hover:text-brand-600 uppercase tracking-tighter">Assign Now</span>
+                                                <span className="text-[10px] font-black text-slate-400 group-hover:text-brand-600 uppercase tracking-tighter">Fix Now</span>
                                                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-brand-600 group-hover:translate-x-1 transition-all" />
                                             </div>
                                         </button>
@@ -501,10 +501,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                         </div>
                     )}
                     
-                    <h5 className="text-[11px] font-black text-slate-400 uppercase mb-5 px-1 tracking-widest">Free Staff Directory</h5>
+                    <h5 className="text-[11px] font-black text-slate-400 uppercase mb-5 tracking-widest px-1">Free Staff Directory</h5>
                     {(Object.entries(allFreeTeachers) as [string, Array<{t: Teacher, status: dataService.TeacherDetailedStatus}>][]).map(([pIdx, freeList]) => (
                         <div key={pIdx} className="mb-5 last:mb-0 border-b last:border-0 border-slate-200 dark:border-slate-800 pb-4 flex gap-6 items-start">
-                            <span className="text-[11px] font-black bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-4 py-1.5 rounded-2xl h-fit min-w-[70px] text-center shadow-sm">P{getPeriodLabel(parseInt(pIdx))}</span>
+                            <span className="text-[11px] font-black bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-4 py-1.5 rounded-2xl min-w-[70px] text-center shadow-sm">P{getPeriodLabel(parseInt(pIdx))}</span>
                             <div className="flex flex-wrap gap-2.5 pt-1">
                                 {freeList.length > 0 ? freeList.map(({t}) => (
                                     <span key={t.id} className="text-[12px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border dark:border-slate-800 hover:text-brand-600 hover:border-brand-500 hover:shadow-md transition-all cursor-default shadow-sm"><div className="w-2.5 h-2.5 rounded-full ring-2 ring-slate-100 dark:ring-slate-800" style={{backgroundColor: t.color}} /> {t.name}</span>
@@ -517,17 +517,17 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         </div>
       </div>
 
-      {/* Assignment Studio: Enhanced UI Picker */}
+      {/* Assignment Studio: Enhanced Picker Modal */}
       {isModalOpen && editingSlot && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-lg no-print animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-[4rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)] w-full max-w-6xl overflow-hidden border dark:border-slate-800 animate-pop-in flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4 backdrop-blur-xl no-print animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-[4rem] shadow-2xl w-full max-w-6xl overflow-hidden border dark:border-slate-800 animate-pop-in flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className={`p-8 flex justify-between items-center text-white ${timetableMode === 'BASE' ? 'bg-purple-600' : 'bg-brand-600'} shrink-0`}>
                     <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-white/25 rounded-3xl flex items-center justify-center shadow-inner backdrop-blur-sm"><Edit3 className="w-8 h-8" /></div>
+                        <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center backdrop-blur-sm"><Edit3 className="w-8 h-8" /></div>
                         <div>
                             <h3 className="font-black text-3xl uppercase tracking-tighter">Assignment Studio</h3>
-                            <div className="flex items-center gap-3 mt-1">
+                            <div className="flex items-center gap-3 mt-1.5">
                                 <span className="px-3 py-1 bg-black/20 rounded-full text-[10px] font-black uppercase tracking-widest">{classes.find(c => c.id === editingSlot.classId)?.name}</span>
                                 <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest">Period {getPeriodLabel(editingSlot.periodIndex)}</span>
                                 <span className="text-[10px] font-bold opacity-75">{PERIODS[editingSlot.periodIndex].start} - {PERIODS[editingSlot.periodIndex].end}</span>
@@ -537,204 +537,198 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                     <button onClick={() => setIsModalOpen(false)} className="p-4 bg-white/10 hover:bg-white/30 rounded-full transition-all hover:rotate-90 duration-300"><X className="w-8 h-8"/></button>
                 </div>
                 
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden flex flex-col">
-                    {/* Mode Tabs */}
-                    <div className="flex bg-slate-50 dark:bg-black/50 p-3 border-b dark:border-slate-800 gap-3 shrink-0">
-                        <button onClick={() => setAssignType('NORMAL')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-3xl transition-all ${assignType === 'NORMAL' ? 'bg-white dark:bg-slate-800 text-brand-600 shadow-2xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Users className="w-5 h-5" /> Normal Session</button>
-                        <button onClick={() => setAssignType('SPLIT')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-3xl transition-all ${assignType === 'SPLIT' ? 'bg-white dark:bg-slate-800 text-purple-600 shadow-2xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Layers className="w-5 h-5" /> Split Period</button>
-                        <button onClick={() => setAssignType('FREE')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-3xl transition-all ${assignType === 'FREE' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-2xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Sparkles className="w-5 h-5" /> Self Study</button>
-                    </div>
+                {/* Mode Tabs */}
+                <div className="flex bg-slate-100 dark:bg-black/50 p-3 border-b dark:border-slate-800 gap-3 shrink-0">
+                    <button onClick={() => setAssignType('NORMAL')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-[2rem] transition-all ${assignType === 'NORMAL' ? 'bg-white dark:bg-slate-800 text-brand-600 shadow-xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Users className="w-5 h-5" /> Normal Session</button>
+                    <button onClick={() => setAssignType('SPLIT')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-[2rem] transition-all ${assignType === 'SPLIT' ? 'bg-white dark:bg-slate-800 text-purple-600 shadow-xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Layers className="w-5 h-5" /> Parallel Session</button>
+                    <button onClick={() => setAssignType('FREE')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-[2rem] transition-all ${assignType === 'FREE' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Sparkles className="w-5 h-5" /> Self Study</button>
+                </div>
 
-                    <div className="flex-1 p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 overflow-y-auto custom-scrollbar border-b dark:border-slate-800">
-                        {/* Configuration Column */}
-                        <div className="lg:col-span-8 space-y-10">
-                            {assignType === 'FREE' ? (
-                                <div className="space-y-8 animate-fade-in">
-                                    <div className="p-12 bg-amber-50 dark:bg-amber-900/10 border-4 border-dashed border-amber-200 dark:border-amber-800 rounded-[3.5rem] flex flex-col items-center text-center gap-6">
-                                        <div className="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center shadow-lg"><Sparkles className="w-12 h-12 text-amber-500" /></div>
-                                        <div>
-                                            <h4 className="text-3xl font-black text-amber-800 dark:text-amber-500 uppercase tracking-tighter">Independent Learning</h4>
-                                            <p className="text-base text-amber-600 font-bold max-w-md mt-2 leading-relaxed">No primary instructor is assigned. The class will engage in revision or self-study.</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <label className="block text-[12px] font-black text-slate-400 uppercase ml-6 tracking-[0.3em]">Session Directives</label>
-                                        <textarea 
-                                            value={periodNote} 
-                                            onChange={(e) => setPeriodNote(e.target.value)} 
-                                            rows={5} 
-                                            className="w-full text-lg font-black p-8 bg-white dark:bg-black border-2 border-slate-200 dark:border-slate-800 rounded-[3rem] shadow-inner focus:ring-12 ring-amber-500/5 transition-all outline-none" 
-                                            placeholder="What should students do? (e.g. 'Complete Science homework', 'Revision Unit 3')" 
-                                        />
+                <div className="flex-1 p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 overflow-y-auto custom-scrollbar border-b dark:border-slate-800 bg-slate-50/30 dark:bg-black/20">
+                    {/* Config Area */}
+                    <div className="lg:col-span-8 space-y-10">
+                        {assignType === 'FREE' ? (
+                            <div className="space-y-8 animate-fade-in px-2">
+                                <div className="p-12 bg-amber-50 dark:bg-amber-900/10 border-4 border-dashed border-amber-200 dark:border-amber-800 rounded-[3.5rem] flex flex-col items-center text-center gap-6 shadow-inner">
+                                    <div className="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center shadow-lg"><Sparkles className="w-12 h-12 text-amber-500" /></div>
+                                    <div>
+                                        <h4 className="text-3xl font-black text-amber-800 dark:text-amber-500 uppercase tracking-tighter">Independent Learning</h4>
+                                        <p className="text-base text-amber-600 font-bold max-w-md mt-2 leading-relaxed opacity-80">No primary teacher assigned. Class will engage in independent study tasks.</p>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="space-y-10 animate-fade-in">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {/* Block 1 */}
-                                        <div className={`space-y-8 p-8 rounded-[3.5rem] transition-all border-2 ${assignType === 'SPLIT' ? 'bg-brand-50/20 dark:bg-brand-900/5 border-brand-200/50 dark:border-brand-800/50' : 'bg-white dark:bg-black border-slate-200 dark:border-slate-800 shadow-xl'}`}>
+                                <div className="space-y-3 px-2">
+                                    <label className="block text-[12px] font-black text-slate-400 uppercase ml-6 tracking-[0.3em]">Public Directives</label>
+                                    <textarea 
+                                        value={periodNote} 
+                                        onChange={(e) => setPeriodNote(e.target.value)} 
+                                        rows={5} 
+                                        className="w-full text-lg font-black p-8 bg-white dark:bg-black border-2 border-slate-200 dark:border-slate-800 rounded-[3rem] shadow-xl focus:ring-12 ring-amber-500/5 transition-all outline-none" 
+                                        placeholder="Add note (e.g., 'Revision Unit 3')" 
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-10 animate-fade-in px-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className={`space-y-8 p-8 rounded-[3.5rem] transition-all border-2 ${assignType === 'SPLIT' ? 'bg-brand-50/20 dark:bg-brand-900/5 border-brand-200/50 dark:border-brand-800/50' : 'bg-white dark:bg-black border-slate-200 dark:border-slate-800 shadow-xl'}`}>
+                                        <div className="flex items-center gap-4 border-b-2 dark:border-slate-800 pb-5">
+                                            <div className="w-10 h-10 bg-brand-600 text-white rounded-2xl flex items-center justify-center font-black text-base shadow-lg">01</div>
+                                            <h4 className="text-sm font-black text-brand-700 dark:text-brand-500 uppercase tracking-[0.2em]">Primary Block</h4>
+                                        </div>
+                                        <div className="space-y-6">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Subject Title</label>
+                                                <input type="text" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800" placeholder="e.g. Mathematics" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Lead Staff</label>
+                                                <div className="relative">
+                                                    <Search className="w-5 h-5 absolute left-5 top-4.5 text-slate-400" />
+                                                    <input type="text" value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)} className="w-full pl-14 text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800" placeholder="Search name..." />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {assignType === 'SPLIT' ? (
+                                        <div className="space-y-8 p-8 bg-purple-50/20 dark:bg-purple-900/5 rounded-[3.5rem] border-2 border-purple-200/50 dark:border-purple-800/50 shadow-xl animate-pop-in">
                                             <div className="flex items-center gap-4 border-b-2 dark:border-slate-800 pb-5">
-                                                <div className="w-10 h-10 bg-brand-600 text-white rounded-2xl flex items-center justify-center font-black text-base shadow-lg shadow-brand-500/30">01</div>
-                                                <h4 className="text-sm font-black text-brand-700 dark:text-brand-500 uppercase tracking-[0.2em]">Core Block</h4>
+                                                <div className="w-10 h-10 bg-purple-600 text-white rounded-2xl flex items-center justify-center font-black text-base shadow-lg">02</div>
+                                                <h4 className="text-sm font-black text-purple-700 dark:text-purple-500 uppercase tracking-[0.2em]">Parallel Block</h4>
                                             </div>
                                             <div className="space-y-6">
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Subject Discipline</label>
-                                                    <input type="text" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800" placeholder="e.g. Mathematics" />
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Secondary Subject</label>
+                                                    <input type="text" value={splitSubject} onChange={(e) => setSplitSubject(e.target.value)} className="w-full text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800" placeholder="e.g. Hindi" />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Search Lead Staff</label>
-                                                    <div className="relative">
-                                                        <Search className="w-5 h-5 absolute left-5 top-4.5 text-slate-400" />
-                                                        <input type="text" value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)} className="w-full pl-14 text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800" placeholder="Type name..." />
-                                                    </div>
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Support Staff</label>
+                                                    <select value={splitTeacherId} onChange={(e) => setSplitTeacherId(e.target.value)} className="w-full text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800">
+                                                        <option value="">Choose Staff...</option>
+                                                        {teachers.map(t => (
+                                                            <option key={t.id} value={t.id} disabled={dailyAttendance[t.id] && dailyAttendance[t.id] !== 'present'}>{t.name}</option>
+                                                        ))}
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {/* Block 2 (Split Only) */}
-                                        {assignType === 'SPLIT' ? (
-                                            <div className="space-y-8 p-8 bg-purple-50/20 dark:bg-purple-900/5 rounded-[3.5rem] border-2 border-purple-200/50 dark:border-purple-800/50 shadow-xl animate-pop-in">
-                                                <div className="flex items-center gap-4 border-b-2 dark:border-slate-800 pb-5">
-                                                    <div className="w-10 h-10 bg-purple-600 text-white rounded-2xl flex items-center justify-center font-black text-base shadow-lg shadow-purple-500/30">02</div>
-                                                    <h4 className="text-sm font-black text-purple-700 dark:text-purple-500 uppercase tracking-[0.2em]">Parallel Block</h4>
-                                                </div>
-                                                <div className="space-y-6">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Parallel Subject</label>
-                                                        <input type="text" value={splitSubject} onChange={(e) => setSplitSubject(e.target.value)} className="w-full text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800" placeholder="e.g. Hindi Grammar" />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Choose Support Staff</label>
-                                                        <select value={splitTeacherId} onChange={(e) => setSplitTeacherId(e.target.value)} className="w-full text-base font-black h-14 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none ring-1 ring-slate-200 dark:ring-slate-800">
-                                                            <option value="">Choose Staff...</option>
-                                                            {teachers.map(t => (
-                                                                <option key={t.id} value={t.id} disabled={dailyAttendance[t.id] && dailyAttendance[t.id] !== 'present'}>{t.name} {dailyAttendance[t.id] && dailyAttendance[t.id] !== 'present' ? '(!)' : ''}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                </div>
+                                    ) : (
+                                        <div className="space-y-8 p-8 bg-slate-100/50 dark:bg-black/40 rounded-[3.5rem] border-2 border-slate-200 dark:border-slate-800 shadow-inner">
+                                            <h4 className="text-sm font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3 border-b-2 dark:border-slate-800 pb-5"><Layers className="w-5 h-5 text-brand-600" /> Session Merge</h4>
+                                            <p className="text-xs text-slate-400 font-black px-1 leading-relaxed opacity-60 uppercase tracking-tighter">Merge classes for simultaneous activity.</p>
+                                            <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar pr-3">
+                                                {classes.filter(c => c.id !== editingSlot.classId).map(c => (
+                                                    <button 
+                                                        key={c.id} 
+                                                        onClick={() => setMergedClassIds(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} 
+                                                        className={`px-4 py-3 rounded-2xl border-2 text-[11px] font-black truncate transition-all ${mergedClassIds.includes(c.id) ? 'bg-brand-600 text-white border-brand-600 shadow-xl transform scale-105' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-100 dark:border-slate-800 hover:border-brand-400'}`}
+                                                    >
+                                                        {c.name}
+                                                    </button>
+                                                ))}
                                             </div>
-                                        ) : (
-                                            /* Class Merging (Normal Only) */
-                                            <div className="space-y-8 p-8 bg-slate-100/50 dark:bg-black/40 rounded-[3.5rem] border-2 border-slate-200 dark:border-slate-800">
-                                                <h4 className="text-sm font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3 border-b-2 dark:border-slate-800 pb-5"><Layers className="w-5 h-5 text-brand-600" /> Session Merge</h4>
-                                                <p className="text-xs text-slate-400 font-bold px-1 leading-relaxed">Combine with other classes for simultaneous activity.</p>
-                                                <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar pr-3">
-                                                    {classes.filter(c => c.id !== editingSlot.classId).map(c => (
-                                                        <button 
-                                                            key={c.id} 
-                                                            onClick={() => setMergedClassIds(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} 
-                                                            className={`px-4 py-3 rounded-2xl border-2 text-[11px] font-black truncate transition-all ${mergedClassIds.includes(c.id) ? 'bg-brand-600 text-white border-brand-600 shadow-xl transform scale-105' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-100 dark:border-slate-800 hover:border-brand-300'}`}
-                                                        >
-                                                            {c.name}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Staff Selection Column */}
-                        <div className="lg:col-span-4 flex flex-col space-y-6">
-                            <div className="flex-1 bg-white dark:bg-black rounded-[3.5rem] border-2 border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl">
-                                <div className="p-7 border-b-2 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-md">
-                                    <h4 className="text-[12px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-[0.2em] flex items-center gap-3"><MousePointer2 className="w-5 h-5 text-brand-600" /> Deployment Hub</h4>
-                                    <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase tracking-tighter italic">Selection for Period {getPeriodLabel(editingSlot.periodIndex)}</p>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
-                                    <button 
-                                        onClick={() => setSelectedTeacherId('')} 
-                                        className={`w-full text-left p-5 rounded-3xl text-xs font-black transition-all flex items-center justify-between group border-2 ${selectedTeacherId === '' ? 'bg-slate-900 text-white border-slate-900 shadow-2xl scale-[1.02]' : 'text-slate-400 bg-slate-50 dark:bg-slate-900 border-transparent hover:border-slate-200 dark:hover:border-slate-800'}`}
-                                    >
-                                        <span className="tracking-widest">VACATE POSITION</span>
-                                        <Trash2 className={`w-5 h-5 ${selectedTeacherId === '' ? 'text-red-400' : 'text-slate-300'}`} />
-                                    </button>
-                                    
-                                    {teachersWithStatus
-                                        .filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()))
-                                        .sort((a, b) => (a.status.type === 'FREE' ? -1 : 1))
-                                        .map(t => {
-                                            const { type, busyInClass } = t.status;
-                                            const isAbsent = type === 'ABSENT' || type === 'MORNING_LEAVE' || type === 'AFTERNOON_LEAVE';
-                                            const isFree = type === 'FREE';
-                                            
-                                            return (
-                                                <button 
-                                                    key={t.id} 
-                                                    onClick={() => setSelectedTeacherId(t.id)} 
-                                                    className={`w-full text-left p-5 rounded-3xl text-sm font-bold flex flex-col transition-all border-2 ${selectedTeacherId === t.id ? 'bg-brand-600 text-white border-brand-500 shadow-2xl scale-[1.05]' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 hover:border-brand-400'}`}
-                                                >
-                                                    <div className="flex justify-between items-center w-full">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black shadow-lg transform group-hover:rotate-6 transition-transform" style={{ backgroundColor: t.color }}>{t.initials}</div> 
-                                                            <span className="truncate max-w-[150px] font-black">{t.name}</span>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            {isFree ? (
-                                                                <span className={`text-[9px] px-2.5 py-1 rounded-full font-black tracking-widest ${selectedTeacherId === t.id ? 'bg-white/30' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>FREE</span>
-                                                            ) : (
-                                                                <span className={`text-[9px] px-2.5 py-1 rounded-full font-black tracking-widest ${selectedTeacherId === t.id ? 'bg-white/30' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>{isAbsent ? 'LEAVE' : 'BUSY'}</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    {!isFree && !isAbsent && <span className={`text-[10px] mt-2 font-black uppercase tracking-tighter ${selectedTeacherId === t.id ? 'text-white/80' : 'text-amber-500'}`}>Occupied: {busyInClass}</span>}
-                                                    {isAbsent && <span className={`text-[10px] mt-2 font-black uppercase tracking-tighter ${selectedTeacherId === t.id ? 'text-white/80' : 'text-red-500'}`}>Not In Campus</span>}
-                                                </button>
-                                            );
-                                        })
-                                    }
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            
-                            <button onClick={handleSaveSlot} className="w-full py-6 bg-slate-900 dark:bg-brand-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.4em] shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:translate-y-[-4px] active:translate-y-[2px] transition-all flex items-center justify-center gap-4 shrink-0">
-                                <Save className="w-6 h-6" /> Commit Changes
-                            </button>
+                        )}
+                    </div>
+
+                    {/* Staff Selection Column */}
+                    <div className="lg:col-span-4 flex flex-col space-y-6">
+                        <div className="flex-1 bg-white dark:bg-black rounded-[3.5rem] border-2 border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl">
+                            <div className="p-7 border-b-2 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-md">
+                                <h4 className="text-[12px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-[0.2em] flex items-center gap-3"><MousePointer2 className="w-5 h-5 text-brand-600" /> Deployment Radar</h4>
+                                <p className="text-[10px] text-slate-400 mt-1 font-black uppercase tracking-tighter opacity-60">Status at Period {getPeriodLabel(editingSlot.periodIndex)}</p>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
+                                <button 
+                                    onClick={() => setSelectedTeacherId('')} 
+                                    className={`w-full text-left p-5 rounded-3xl text-[11px] font-black transition-all flex items-center justify-between group border-2 ${selectedTeacherId === '' ? 'bg-slate-900 text-white border-slate-900 shadow-2xl scale-[1.02]' : 'text-slate-400 bg-slate-50 dark:bg-slate-900 border-transparent hover:border-slate-200 dark:hover:border-slate-800'}`}
+                                >
+                                    <span className="tracking-[0.1em]">VACATE DEPLOYMENT</span>
+                                    <Trash2 className={`w-5 h-5 ${selectedTeacherId === '' ? 'text-red-400' : 'text-slate-300'}`} />
+                                </button>
+                                
+                                {teachersWithStatus
+                                    .filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()))
+                                    .sort((a, b) => (a.status.type === 'FREE' ? -1 : 1))
+                                    .map(t => {
+                                        const { type, busyInClass } = t.status;
+                                        const isAbsent = type === 'ABSENT' || type === 'MORNING_LEAVE' || type === 'AFTERNOON_LEAVE';
+                                        const isFree = type === 'FREE';
+                                        
+                                        return (
+                                            <button 
+                                                key={t.id} 
+                                                onClick={() => setSelectedTeacherId(t.id)} 
+                                                className={`w-full text-left p-5 rounded-3xl text-sm font-bold flex flex-col transition-all border-2 ${selectedTeacherId === t.id ? 'bg-brand-600 text-white border-brand-500 shadow-2xl scale-[1.05]' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 hover:border-brand-400'}`}
+                                            >
+                                                <div className="flex justify-between items-center w-full">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black shadow-lg" style={{ backgroundColor: t.color }}>{t.initials}</div> 
+                                                        <span className="truncate max-w-[150px] font-black uppercase text-xs tracking-tighter">{t.name}</span>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        {isFree ? (
+                                                            <span className={`text-[8px] px-2.5 py-1 rounded-full font-black tracking-widest ${selectedTeacherId === t.id ? 'bg-white/30' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>FREE</span>
+                                                        ) : (
+                                                            <span className={`text-[8px] px-2.5 py-1 rounded-full font-black tracking-widest ${selectedTeacherId === t.id ? 'bg-white/30' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>{isAbsent ? 'LEAVE' : 'BUSY'}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {!isFree && !isAbsent && <span className={`text-[9px] mt-2 font-black uppercase tracking-tighter opacity-80 ${selectedTeacherId === t.id ? 'text-white' : 'text-amber-500'}`}>Teaching: {busyInClass}</span>}
+                                                {isAbsent && <span className={`text-[9px] mt-2 font-black uppercase tracking-tighter opacity-80 ${selectedTeacherId === t.id ? 'text-white' : 'text-red-500'}`}>Off Duty</span>}
+                                            </button>
+                                        );
+                                    })
+                                }
+                            </div>
                         </div>
+                        
+                        <button onClick={handleSaveSlot} className="w-full py-6 bg-slate-900 dark:bg-brand-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.4em] shadow-2xl hover:translate-y-[-4px] active:translate-y-[2px] transition-all flex items-center justify-center gap-4 shrink-0">
+                            <Save className="w-6 h-6" /> Save Assignment
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
       )}
 
-      {/* Class Manager: Polished & Modern */}
+      {/* Class Manager: Registry Overhaul */}
       {isClassManagerOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-xl no-print animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-[3.5rem] shadow-2xl w-full max-w-xl overflow-hidden border dark:border-slate-800 animate-pop-in">
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/90 p-4 backdrop-blur-2xl no-print animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-[4rem] shadow-2xl w-full max-w-2xl overflow-hidden border dark:border-slate-800 animate-pop-in">
                 <div className="p-8 bg-slate-800 text-white flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><Layers className="w-6 h-6 text-brand-400" /></div>
+                    <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 bg-white/10 rounded-3xl flex items-center justify-center shadow-inner"><Layers className="w-7 h-7 text-brand-400" /></div>
                         <div>
-                            <h3 className="font-black text-lg uppercase tracking-[0.2em]">Class Registry</h3>
+                            <h3 className="font-black text-2xl uppercase tracking-[0.2em] leading-tight">Institutional Registry</h3>
                             <p className="text-[10px] font-bold uppercase opacity-60 tracking-widest">Global School Hierarchy</p>
                         </div>
                     </div>
-                    <button onClick={() => { setIsClassManagerOpen(false); setSwipedClassId(null); }} className="p-3 hover:bg-white/10 rounded-full transition-all"><X className="w-6 h-6"/></button>
+                    <button onClick={() => { setIsClassManagerOpen(false); setSwipedClassId(null); }} className="p-4 hover:bg-white/10 rounded-full transition-all"><X className="w-8 h-8"/></button>
                 </div>
                 <div className="p-10 space-y-8">
-                    <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-4">
+                    <div className="space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar pr-4">
                         {classes.map(cls => (
-                            <div key={cls.id} className="relative overflow-hidden rounded-3xl bg-slate-50 dark:bg-slate-800 h-16 group shadow-sm">
-                                <button onClick={() => handleDeleteClass(cls.id)} className="absolute right-0 top-0 bottom-0 w-28 bg-red-600 text-white flex flex-col items-center justify-center gap-1"><Trash2 className="w-5 h-5" /><span className="text-[10px] font-black uppercase tracking-widest">WIPE</span></button>
-                                <div className="absolute inset-0 bg-white dark:bg-slate-900 flex gap-5 items-center px-6 transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) border dark:border-slate-800 rounded-3xl" style={{ transform: swipedClassId === cls.id ? 'translateX(-112px)' : 'translateX(0)' }} onTouchStart={(e) => handleTouchStart(e, cls.id)} onTouchMove={(e) => handleTouchMove(e, cls.id)} onTouchEnd={() => touchStartX.current = null}>
-                                    <div className="flex flex-col gap-1 w-28 shrink-0">
+                            <div key={cls.id} className="relative overflow-hidden rounded-3xl bg-slate-50 dark:bg-slate-800 h-16 group shadow-sm border border-slate-100 dark:border-slate-700">
+                                <button onClick={() => handleDeleteClass(cls.id)} className="absolute right-0 top-0 bottom-0 w-28 bg-red-600 text-white flex flex-col items-center justify-center gap-1 shadow-inner"><Trash2 className="w-5 h-5" /><span className="text-[10px] font-black uppercase tracking-widest">WIPE</span></button>
+                                <div className="absolute inset-0 bg-white dark:bg-slate-900 flex gap-6 items-center px-8 transition-transform duration-500 border dark:border-slate-800 rounded-3xl shadow-sm" style={{ transform: swipedClassId === cls.id ? 'translateX(-112px)' : 'translateX(0)' }} onTouchStart={(e) => handleTouchStart(e, cls.id)} onTouchMove={(e) => handleTouchMove(e, cls.id)} onTouchEnd={() => touchStartX.current = null}>
+                                    <div className="flex flex-col gap-1 w-32 shrink-0">
                                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Section</label>
-                                        <select value={cls.section} onChange={async (e) => setClasses(await dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, section: e.target.value as any } : c)))} className="text-[11px] font-black uppercase py-1 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none ring-1 ring-slate-200 dark:ring-slate-700"><option value="SECONDARY">Secondary</option><option value="SENIOR_SECONDARY">Sr Sec</option></select>
+                                        <select value={cls.section} onChange={async (e) => setClasses(await dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, section: e.target.value as any } : c)))} className="text-[11px] font-black uppercase py-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none ring-1 ring-slate-200 dark:ring-slate-700"><option value="SECONDARY">Secondary</option><option value="SENIOR_SECONDARY">Sr Sec</option></select>
                                     </div>
                                     <div className="flex-1 flex flex-col gap-1">
                                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Designation</label>
-                                        <input type="text" value={cls.name} onChange={async (e) => setClasses(await dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, name: e.target.value } : c)))} className="text-base font-black h-8 bg-transparent border-none p-0 outline-none ring-0" />
+                                        <input type="text" value={cls.name} onChange={async (e) => setClasses(await dataService.saveClasses(classes.map(c => c.id === cls.id ? { ...c, name: e.target.value } : c)))} className="text-base font-black h-8 bg-transparent border-none p-0 outline-none ring-0 shadow-none focus:ring-0" />
                                     </div>
-                                    <button onClick={() => handleDeleteClass(cls.id)} className="hidden md:block p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all"><Trash2 className="w-5 h-5" /></button>
+                                    <button onClick={() => handleDeleteClass(cls.id)} className="hidden md:block p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all shadow-sm"><Trash2 className="w-5 h-5" /></button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                    <button onClick={handleAddClass} className="w-full py-5 border-4 border-dashed border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-black uppercase tracking-[0.3em] rounded-[2.5rem] flex items-center justify-center gap-4 hover:border-brand-500 hover:text-brand-600 hover:bg-brand-50/50 transition-all active:scale-95 group"><Plus className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" /> New Enrollment</button>
+                    <button onClick={handleAddClass} className="w-full py-6 border-4 border-dashed border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-black uppercase tracking-[0.4em] rounded-[2.5rem] flex items-center justify-center gap-4 hover:border-brand-500 hover:text-brand-600 hover:bg-brand-50/50 transition-all active:scale-95 group shadow-sm"><Plus className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" /> NEW CLASS</button>
                 </div>
             </div>
         </div>

@@ -5,18 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Silver Star Scheduler</title>
     
-    <!-- PWA & Icon Assets -->
-    <link rel="icon" type="image/png" href="https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png" />
-    <link rel="shortcut icon" href="https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png" />
+    <!-- Meta Tags for Social Sharing (WhatsApp, Facebook, Twitter, etc.) -->
+    <meta name="description" content="Official School Management System for Silver Star Convent School." />
+    <meta property="og:title" content="Silver Star Management" />
+    <meta property="og:description" content="Official School Management System for Silver Star Convent School." />
+    <meta property="og:image" content="https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png" />
+
+    <!-- Permanent Logo Assets -->
+    <link rel="icon" type="image/png" href="https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png" />
+    <link rel="shortcut icon" href="https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png" />
+    <link rel="apple-touch-icon" href="https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png" />
     <link rel="manifest" href="/manifest.json" />
-    
-    <!-- Mobile/PWA Optimization -->
+
+    <!-- PWA / Mobile Browser Optimization -->
     <meta name="theme-color" content="#0284c7" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Silver Star" />
-    <link rel="apple-touch-icon" href="https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;700;900&display=swap" rel="stylesheet">
@@ -41,6 +52,13 @@
             },
             animation: {
               'bounce-slow': 'bounce 3s infinite',
+              'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            },
+            keyframes: {
+              slideUp: {
+                '0%': { transform: 'translateY(100%) translateX(-50%)', opacity: '0' },
+                '100%': { transform: 'translateY(0) translateX(-50%)', opacity: '1' },
+              }
             }
           }
         }
@@ -71,13 +89,12 @@
         border-color: #0ea5e9 !important;
         outline: none !important;
         box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1) !important;
-        transform: translateY(-1px);
       }
 
       @media print {
         @page { size: A4 landscape; margin: 1cm; }
         .no-print { display: none !important; }
-        body { background: white; -webkit-print-color-adjust: exact !important; }
+        body { background: white !important; }
       }
       
       @keyframes pop-in {
@@ -89,6 +106,9 @@
       .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
       .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
       .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+
+      /* Prompt hidden by default */
+      #pwa-prompt { display: none; visibility: hidden; }
     </style>
   <script type="importmap">
 {
@@ -109,6 +129,45 @@
 </head>
   <body class="bg-gray-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200 antialiased overflow-x-hidden select-none">
     <div id="root"></div>
+
+    <!-- Persistent Web Shortcut Install Prompt -->
+    <div id="pwa-prompt" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999] w-[94%] max-w-md animate-slide-up">
+        <div class="bg-white dark:bg-slate-900 border-2 border-brand-500 shadow-[0_30px_90px_rgba(2,132,199,0.6)] rounded-[2.5rem] p-6 flex items-center gap-5">
+            <div class="w-20 h-20 bg-brand-50 dark:bg-brand-900/20 rounded-2xl p-1 shrink-0 shadow-inner flex items-center justify-center border border-brand-100 dark:border-brand-800">
+                <img src="https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png" alt="SSC" class="w-full h-full object-contain" crossorigin="anonymous" />
+            </div>
+            <div class="flex-1">
+                <h4 class="text-sm font-black text-slate-800 dark:text-white uppercase leading-tight tracking-tight">Add Web Shortcut</h4>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-1.5 leading-tight">Add <strong>Silver Star</strong> to your Home Screen for quick access and full-screen mode.</p>
+                <div class="mt-3 flex items-center gap-2">
+                    <span class="px-2 py-0.5 bg-brand-600 text-white rounded text-[9px] font-black uppercase shadow-sm">Menu > Install / Add to Home</span>
+                </div>
+            </div>
+            <button onclick="document.getElementById('pwa-prompt').style.display='none'" class="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+        </div>
+        <div class="absolute -top-3 left-10 px-5 py-2 bg-brand-600 text-white text-[11px] font-black uppercase rounded-full shadow-2xl ring-4 ring-white dark:ring-slate-950">Quick Access</div>
+    </div>
+
     <script type="module" src="/index.tsx"></script>
+    <script>
+      // Automatically show install prompt if not standalone
+      function initPWAUI() {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        const promptEl = document.getElementById('pwa-prompt');
+        
+        if (!isStandalone && promptEl) {
+          // Add a delay to ensure it pops up after the user sees the page
+          setTimeout(() => {
+            promptEl.style.display = 'block';
+            promptEl.style.visibility = 'visible';
+          }, 2000);
+        }
+      }
+      
+      window.addEventListener('load', initPWAUI);
+      document.addEventListener('DOMContentLoaded', initPWAUI);
+    </script>
   </body>
 </html>

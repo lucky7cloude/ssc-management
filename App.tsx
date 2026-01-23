@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { TeacherManager } from './components/TeacherManager';
 import { TimetableManager } from './components/TimetableManager';
@@ -60,7 +59,6 @@ const App: React.FC = () => {
     
     setNotifications(dataService.getNotifications());
     
-    // Cloud Polling (Every 30 seconds check for updates from other devices)
     const pollInterval = setInterval(async () => {
         const updated = await dataService.fetchAllData();
         if (updated) {
@@ -110,15 +108,15 @@ const App: React.FC = () => {
   if (!isCloudLoaded) {
       return (
           <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-8 text-center">
-              <div className="w-24 h-24 mb-8 animate-bounce">
-                <img src={SCHOOL_LOGO_URL} alt="Silver Star" className="w-full h-full object-contain" />
+              <div className="w-40 h-40 mb-10 animate-pulse">
+                <img src={SCHOOL_LOGO_URL} alt="Silver Star" className="w-full h-full object-contain" loading="eager" crossOrigin="anonymous" />
               </div>
-              <div className="relative">
-                <Loader2 className="w-12 h-12 text-brand-500 animate-spin mb-4 mx-auto" />
-                <Cloud className="w-5 h-5 text-white absolute top-3.5 left-1/2 -translate-x-1/2" />
+              <div className="relative mb-6">
+                <Loader2 className="w-14 h-14 text-brand-500 animate-spin mx-auto" />
+                <Cloud className="w-6 h-6 text-white absolute top-4 left-1/2 -translate-x-1/2" />
               </div>
-              <h2 className="text-white font-bold text-xl tracking-[0.2em] uppercase">Connecting to Cloud</h2>
-              <p className="text-slate-500 text-xs mt-3 font-medium max-w-xs">Fetching Silver Star Convent School's official database. This ensures your data is synced across all devices.</p>
+              <h2 className="text-white font-black text-2xl tracking-[0.3em] uppercase">Booting Cloud</h2>
+              <p className="text-slate-500 text-sm mt-4 font-bold max-w-xs uppercase tracking-tighter">Syncing Institutional Registry...</p>
           </div>
       );
   }
@@ -126,34 +124,36 @@ const App: React.FC = () => {
   if (!currentRole) {
       return (
           <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
-              <div className="mb-8 flex flex-col items-center animate-fade-in text-center">
-                 <div className="w-24 h-24 mb-4"><img src={SCHOOL_LOGO_URL} alt="Logo" className="w-full h-full object-contain" /></div>
-                 <h1 className="text-3xl font-serif font-bold text-slate-800 dark:text-slate-100">Silver Star</h1>
-                 <p className="text-slate-500 dark:text-slate-400 font-medium tracking-widest uppercase text-[10px] mt-1">SSC-MANAGEMENT • Made by lucky</p>
+              <div className="mb-10 flex flex-col items-center animate-fade-in text-center">
+                 <div className="w-48 h-48 mb-6">
+                    <img src={SCHOOL_LOGO_URL} alt="Logo" className="w-full h-full object-contain" loading="eager" crossOrigin="anonymous" />
+                 </div>
+                 <h1 className="text-4xl font-serif font-black text-slate-800 dark:text-slate-100">Silver Star</h1>
+                 <p className="text-slate-500 dark:text-slate-400 font-black tracking-[0.4em] uppercase text-[11px] mt-2">Institutional Management • v2.5</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-xl">
-                  <button onClick={() => handleRoleSelect('PRINCIPAL')} className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-brand-500 transition-all flex flex-col items-center text-center group">
-                      <div className="w-16 h-16 bg-brand-50 dark:bg-brand-900/20 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-brand-500 transition-colors"><Shield className="w-8 h-8 text-brand-600 group-hover:text-white" /></div>
-                      <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Principal</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Administrator Access</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+                  <button onClick={() => handleRoleSelect('PRINCIPAL')} className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-xl border-2 border-transparent hover:border-brand-500 transition-all flex flex-col items-center text-center group">
+                      <div className="w-20 h-20 bg-brand-50 dark:bg-brand-900/20 rounded-3xl flex items-center justify-center mb-6 group-hover:bg-brand-500 transition-all"><Shield className="w-10 h-10 text-brand-600 group-hover:text-white" /></div>
+                      <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Principal</h3>
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-2 uppercase tracking-widest">Full Control Access</p>
                   </button>
-                  <button onClick={() => handleRoleSelect('MANAGEMENT')} className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-purple-500 transition-all flex flex-col items-center text-center group">
-                      <div className="w-16 h-16 bg-purple-50 dark:bg-purple-900/20 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-500 transition-colors"><BarChart3 className="w-8 h-8 text-purple-600 group-hover:text-white" /></div>
-                      <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Management</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Observer Access</p>
+                  <button onClick={() => handleRoleSelect('MANAGEMENT')} className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-xl border-2 border-transparent hover:border-purple-500 transition-all flex flex-col items-center text-center group">
+                      <div className="w-20 h-20 bg-purple-50 dark:bg-purple-900/20 rounded-3xl flex items-center justify-center mb-6 group-hover:bg-purple-500 transition-all"><BarChart3 className="w-10 h-10 text-purple-600 group-hover:text-white" /></div>
+                      <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Management</h3>
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-2 uppercase tracking-widest">Observer Console</p>
                   </button>
               </div>
               {showLoginModal && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-pop-in">
-                          <div className="bg-slate-800 dark:bg-black p-4 flex justify-between items-center text-white"><h3 className="font-bold flex items-center gap-2 text-sm"><Lock className="w-4 h-4" /> Security Gateway</h3><button onClick={() => setShowLoginModal(false)}><X className="w-4 h-4"/></button></div>
-                          <form onSubmit={handleLoginSubmit} className="p-8 space-y-6">
-                                <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Identity Verification</label>
-                                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full rounded-xl bg-black border border-slate-700 p-4 outline-none focus:ring-2 focus:ring-brand-500 font-bold tracking-[0.5em] text-center text-white text-xl" placeholder="••••" autoFocus />
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+                      <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-sm overflow-hidden animate-pop-in border dark:border-slate-800">
+                          <div className="bg-slate-800 dark:bg-black p-6 flex justify-between items-center text-white"><h3 className="font-black uppercase tracking-widest text-xs flex items-center gap-2"><Lock className="w-4 h-4" /> Secure Auth</h3><button onClick={() => setShowLoginModal(false)}><X className="w-6 h-6"/></button></div>
+                          <form onSubmit={handleLoginSubmit} className="p-10 space-y-8">
+                                <div className="space-y-4 text-center">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Passkey Required</label>
+                                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full rounded-2xl bg-slate-50 dark:bg-black border border-slate-200 dark:border-slate-800 p-5 outline-none focus:ring-4 focus:ring-brand-500/10 font-black tracking-[0.8em] text-center text-slate-800 dark:text-white text-3xl shadow-inner" placeholder="••••" autoFocus />
                                 </div>
-                                {loginError && <p className="text-xs text-red-500 font-bold text-center uppercase tracking-wider animate-shake">{loginError}</p>}
-                                <button type="submit" className="w-full bg-brand-600 text-white py-4 rounded-xl font-bold uppercase tracking-widest hover:bg-brand-700 shadow-lg transform active:scale-95 transition-all">Sign In</button>
+                                {loginError && <p className="text-xs text-red-500 font-black text-center uppercase tracking-widest animate-shake">{loginError}</p>}
+                                <button type="submit" className="w-full bg-brand-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-700 shadow-2xl transform active:scale-95 transition-all">Grant Access</button>
                           </form>
                       </div>
                   </div>
@@ -166,68 +166,62 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row overflow-x-hidden transition-colors duration-300">
-      {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] animate-pop-in"><div className="bg-slate-800 dark:bg-black text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-bold text-xs border border-slate-700"><CheckCircle2 className="w-4 h-4 text-green-400" /> {toast.message}</div></div>}
+      {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[500] animate-pop-in"><div className="bg-slate-900 dark:bg-black text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-3 font-black text-xs border border-slate-800 tracking-widest uppercase"><CheckCircle2 className="w-5 h-5 text-green-400" /> {toast.message}</div></div>}
       
-      {isSidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 md:hidden animate-fade-in" onClick={() => setIsSidebarOpen(false)}></div>}
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-[110] md:hidden animate-fade-in" onClick={() => setIsSidebarOpen(false)}></div>}
       
-      <aside className={`fixed md:sticky top-0 left-0 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 transition-transform md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col no-print`}>
-        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex flex-col items-center">
-            <div className="w-24 h-24 mb-4"><img src={SCHOOL_LOGO_URL} alt="Silver Star" className="w-full h-full object-contain" /></div>
-            <h2 className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.3em] text-center leading-relaxed">Silver Star<br/>Convent School</h2>
+      <aside className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-[120] transition-transform md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col no-print`}>
+        <div className="p-10 border-b border-slate-100 dark:border-slate-800 flex flex-col items-center">
+            <div className="w-40 h-40 mb-6 bg-slate-50 dark:bg-slate-950 p-4 rounded-[2rem] shadow-inner flex items-center justify-center">
+              <img src={SCHOOL_LOGO_URL} alt="Silver Star" className="w-full h-full object-contain" loading="eager" crossOrigin="anonymous" />
+            </div>
+            <h2 className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.5em] text-center leading-relaxed">Silver Star<br/>Convent</h2>
         </div>
-        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar">
-          <NavButton view={View.TIMETABLE} icon={Calendar} label="Timetable" />
-          <NavButton view={View.TEACHERS} icon={Users} label="Staff Directory" />
-          <NavButton view={View.REMARKS} icon={FileSignature} label="Teacher Remarks" />
-          <NavButton view={View.EXAMS} icon={Clock} label="Exam Planner" />
-          <NavButton view={View.MEETINGS} icon={ClipboardList} label="Staff Meetings" />
+        <nav className="p-6 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
+          <NavButton view={View.TIMETABLE} icon={Calendar} label="Daily Grid" />
+          <NavButton view={View.TEACHERS} icon={Users} label="Staff Hub" />
+          <NavButton view={View.REMARKS} icon={FileSignature} label="Remarks" />
+          <NavButton view={View.EXAMS} icon={Clock} label="Exams" />
+          <NavButton view={View.MEETINGS} icon={ClipboardList} label="Meetings" />
           <NavButton view={View.SETTINGS} icon={SettingsIcon} label="Cloud Core" />
         </nav>
-        <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-            <button onClick={() => setCurrentRole(null)} className="w-full flex items-center justify-center gap-2 text-xs text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-900/20 p-3 rounded-xl transition-all"><LogOut className="w-4 h-4" /> Sign Out</button>
+        <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+            <button onClick={() => setCurrentRole(null)} className="w-full flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-4 rounded-2xl transition-all"><LogOut className="w-5 h-5" /> Sign Out</button>
         </div>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 h-16 flex items-center justify-between px-4 md:px-8 shrink-0 no-print z-30">
-           <div className="flex items-center gap-4">
-              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 hover:bg-slate-100 rounded-lg"><Menu className="w-6 h-6 text-slate-600 dark:text-slate-400" /></button>
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 h-20 flex items-center justify-between px-6 md:px-10 shrink-0 no-print z-30">
+           <div className="flex items-center gap-6">
+              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl"><Menu className="w-7 h-7 text-slate-600 dark:text-slate-400" /></button>
               <div className="flex flex-col">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 font-serif truncate leading-tight">
-                    {currentView === View.TIMETABLE && 'School Timetable'}
-                    {currentView === View.TEACHERS && 'Staff Management'}
-                    {currentView === View.REMARKS && 'Daily Remarks'}
-                    {currentView === View.EXAMS && 'Exam Schedule'}
-                    {currentView === View.MEETINGS && 'Meeting Records'}
-                    {currentView === View.SETTINGS && 'Cloud Settings'}
+                <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 font-serif truncate tracking-tighter">
+                    {currentView === View.TIMETABLE && 'Timetable Studio'}
+                    {currentView === View.TEACHERS && 'Staff Directory'}
+                    {currentView === View.REMARKS && 'Daily Feedback'}
+                    {currentView === View.EXAMS && 'Exam Planner'}
+                    {currentView === View.MEETINGS && 'Institutional Logs'}
+                    {currentView === View.SETTINGS && 'System Config'}
                 </h2>
-                <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'SYNCING' ? 'bg-amber-500 animate-pulse' : (syncStatus === 'ERROR' ? 'bg-red-500' : 'bg-green-500')}`}></div>
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{lastSyncTime}</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                    <div className={`w-2 h-2 rounded-full ${syncStatus === 'SYNCING' ? 'bg-amber-500 animate-pulse' : (syncStatus === 'ERROR' ? 'bg-red-500' : 'bg-green-500')}`}></div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{lastSyncTime}</span>
                 </div>
               </div>
            </div>
            
-           <div className="flex items-center gap-2">
-              <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-full hover:bg-slate-100 text-slate-600 dark:text-slate-400 transition-all">
+           <div className="flex items-center gap-3">
+              <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-all border dark:border-slate-700">
                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 rounded-full hover:bg-slate-100 relative text-slate-600 dark:text-slate-400">
+              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 relative text-slate-600 dark:text-slate-400 border dark:border-slate-700">
                   <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>}
+                  {unreadCount > 0 && <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>}
               </button>
            </div>
-           {isNotifOpen && (
-               <div className="absolute right-4 top-14 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 z-[60] overflow-hidden animate-pop-in">
-                   <div className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center"><h3 className="font-bold text-[10px] uppercase tracking-widest text-slate-500">Cloud Sync Feed</h3><button onClick={() => dataService.clearNotifications()} className="text-[10px] text-red-500 font-bold uppercase">Clear</button></div>
-                   <div className="max-h-80 overflow-y-auto custom-scrollbar">
-                       {notifications.length > 0 ? notifications.map(n => <div key={n.id} className="p-4 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">{n.message}</div>) : <div className="p-8 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">All systems live</div>}
-                   </div>
-               </div>
-           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar scroll-smooth">
            {currentView === View.TIMETABLE && <TimetableManager currentRole={currentRole} />}
            {currentView === View.TEACHERS && <TeacherManager currentRole={currentRole} />}
            {currentView === View.REMARKS && <TeacherRemarks currentRole={currentRole} />}
@@ -236,11 +230,10 @@ const App: React.FC = () => {
            {currentView === View.SETTINGS && <SettingsManager currentRole={currentRole} />}
         </div>
 
-        <footer className="h-12 border-t dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-[8px] font-black text-slate-400 uppercase no-print">
-            <div className="flex items-center gap-2 tracking-[0.4em]">
-                SSC-MANAGEMENT • Active <Heart className="w-2 h-2 text-red-500 fill-current" />
+        <footer className="h-14 border-t dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-[9px] font-black text-slate-400 uppercase no-print">
+            <div className="flex items-center gap-2 tracking-[0.5em]">
+                Silver Star Management • System Active <Heart className="w-3 h-3 text-red-500 fill-current" />
             </div>
-            <div className="tracking-[0.1em] mt-0.5 opacity-60">Made by lucky</div>
         </footer>
       </main>
     </div>

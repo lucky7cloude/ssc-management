@@ -1,10 +1,10 @@
 
-const CACHE_NAME = 'silver-star-v2';
+const CACHE_NAME = 'silver-star-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png'
+  'https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png'
 ];
 
 // Install Event: Cache essential assets

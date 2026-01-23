@@ -1,4 +1,3 @@
-
 {
   "id": "com.silverstar.management",
   "name": "Silver Star Management",
@@ -12,63 +11,31 @@
   "categories": ["education", "productivity"],
   "icons": [
     {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "96x96",
-      "type": "image/png"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "128x128",
-      "type": "image/png"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "152x152",
-      "type": "image/png"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
+      "src": "https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "384x384",
-      "type": "image/png"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
+      "src": "https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
+      "src": "https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Timetable View"
-    },
-    {
-      "src": "https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png",
-      "sizes": "1920x1080",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Desktop Dashboard"
+      "label": "Timetable Dashboard"
     }
   ]
 }

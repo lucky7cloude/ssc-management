@@ -1,7 +1,7 @@
 
 export type UserRole = 'PRINCIPAL' | 'MANAGEMENT';
 
-export const SCHOOL_LOGO_URL = 'https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png';
+export const SCHOOL_LOGO_URL = 'https://image2url.com/r2/default/images/1769146032212-8a3c0445-0f84-4d4b-b978-35b6c3d3ee7c.png';
 
 export type AttendanceStatus = 'present' | 'absent' | 'half_day_before' | 'half_day_after';
 
