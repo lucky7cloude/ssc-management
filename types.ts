@@ -3,6 +3,8 @@ export type UserRole = 'PRINCIPAL' | 'MANAGEMENT';
 
 export const SCHOOL_LOGO_URL = 'https://img.sanishtech.com/u/91059fc3eb45b749dfc0ffdec432d6b5.png';
 
+export type AttendanceStatus = 'present' | 'absent' | 'half_day_before' | 'half_day_after';
+
 export interface Teacher {
   id: string;
   name: string;
@@ -94,13 +96,13 @@ export type PeriodTime = {
 };
 
 export const PERIODS: PeriodTime[] = [
-  { start: "09:15 AM", end: "09:55 AM" },
-  { start: "09:55 AM", end: "10:35 AM" },
-  { start: "10:35 AM", end: "11:15 AM" },
-  { start: "11:15 AM", end: "11:30 AM" }, // Lunch
-  { start: "11:30 AM", end: "12:15 PM" },
-  { start: "12:15 PM", end: "01:00 PM" },
-  { start: "01:00 PM", end: "01:45 PM" },
+  { start: "09:15 AM", end: "09:55 AM" }, // 0
+  { start: "09:55 AM", end: "10:35 AM" }, // 1
+  { start: "10:35 AM", end: "11:15 AM" }, // 2
+  { start: "11:15 AM", end: "11:30 AM" }, // 3 (Lunch)
+  { start: "11:30 AM", end: "12:15 PM" }, // 4
+  { start: "12:15 PM", end: "01:00 PM" }, // 5
+  { start: "01:00 PM", end: "01:45 PM" }, // 6
 ];
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

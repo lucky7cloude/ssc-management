@@ -1,5 +1,5 @@
 
-import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, Substitution, AppNotification, PERIODS, DAYS, TeacherMeeting } from '../types';
+import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, Substitution, AppNotification, PERIODS, DAYS, TeacherMeeting, AttendanceStatus } from '../types';
 
 const PREFIX = 'silver_star_cloud_v5_';
 const CLOUD_SYNC_KEY = PREFIX + 'database_id';
@@ -17,17 +17,19 @@ export const setSyncId = (id: string) => {
 // --- CLOUD ENGINE ---
 
 const pushToCloud = async (data: any) => {
+    if (!navigator.onLine) return false;
     const id = getSyncId();
     data.lastUpdated = Date.now();
     try {
         const response = await fetch(`https://keyvalue.xyz/1/${id}`, {
             method: 'POST',
             body: JSON.stringify(data),
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors'
         });
         return response.ok;
     } catch (e) {
-        console.error("Cloud save failed", e);
+        console.warn("Cloud sync currently unavailable, saved locally.");
         return false;
     }
 };
@@ -35,45 +37,62 @@ const pushToCloud = async (data: any) => {
 export const fetchAllData = async () => {
     const id = getSyncId();
     try {
-        const res = await fetch(`https://keyvalue.xyz/1/${id}`);
+        if (!navigator.onLine) throw new Error("Offline");
+        
+        const res = await fetch(`https://keyvalue.xyz/1/${id}`, { mode: 'cors' });
         if (!res.ok) {
             const localData = getStore();
             await pushToCloud(localData);
             return localData;
         }
         const cloudData = await res.json();
-        if (cloudData) {
-            // Only update if cloud data is newer or local is empty
+        if (cloudData && typeof cloudData === 'object') {
             const local = getStore();
-            if (!local.lastUpdated || cloudData.lastUpdated > local.lastUpdated) {
+            if (!local.lastUpdated || (cloudData.lastUpdated && cloudData.lastUpdated > local.lastUpdated)) {
                 localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cloudData));
                 window.dispatchEvent(new CustomEvent('data-updated'));
             }
             return cloudData;
         }
-        return null;
+        return getStore();
     } catch (e) {
-        const cache = localStorage.getItem(LOCAL_CACHE_KEY);
-        return cache ? JSON.parse(cache) : null;
+        return getStore();
     }
 };
 
 const getStore = () => {
-    const cache = localStorage.getItem(LOCAL_CACHE_KEY);
-    return cache ? JSON.parse(cache) : {
-        teachers: [],
-        baseSchedule: {},
-        overrides: {},
-        classes: [],
-        remarks: [],
-        exams: [],
-        meetings: [],
-        attendance: {},
-        notes: {},
-        instructions: {},
-        notifications: [],
-        lastUpdated: 0
-    };
+    try {
+        const cache = localStorage.getItem(LOCAL_CACHE_KEY);
+        return cache ? JSON.parse(cache) : {
+            teachers: [],
+            baseSchedule: {},
+            overrides: {},
+            classes: [],
+            remarks: [],
+            exams: [],
+            meetings: [],
+            attendance: {},
+            notes: {},
+            instructions: {},
+            notifications: [],
+            lastUpdated: 0
+        };
+    } catch (e) {
+        return {
+            teachers: [],
+            baseSchedule: {},
+            overrides: {},
+            classes: [],
+            remarks: [],
+            exams: [],
+            meetings: [],
+            attendance: {},
+            notes: {},
+            instructions: {},
+            notifications: [],
+            lastUpdated: 0
+        };
+    }
 };
 
 const updateStore = async (key: string, value: any) => {
@@ -81,11 +100,9 @@ const updateStore = async (key: string, value: any) => {
     store[key] = value;
     store.lastUpdated = Date.now();
     
-    // CRITICAL: Save locally first for instant UI response (Optimistic)
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(store));
     window.dispatchEvent(new CustomEvent('data-updated'));
     
-    // Then attempt cloud sync
     window.dispatchEvent(new CustomEvent('sync-status', { detail: 'SYNCING' }));
     const success = await pushToCloud(store);
     window.dispatchEvent(new CustomEvent('sync-status', { detail: success ? 'IDLE' : 'ERROR' }));
@@ -97,7 +114,7 @@ const updateStore = async (key: string, value: any) => {
 
 export const getTeachers = (): Teacher[] => getStore().teachers || [];
 export const saveTeacher = async (teacher: Teacher) => {
-    const teachers = [...getTeachers()]; // Clone to avoid mutation issues
+    const teachers = [...getTeachers()]; 
     const index = teachers.findIndex(t => t.id === teacher.id);
     if (index >= 0) teachers[index] = teacher;
     else teachers.push(teacher);
@@ -194,13 +211,17 @@ export const deleteMeeting = async (id: string) => {
     return await updateStore('meetings', meetings);
 };
 
-export const getAttendanceForDate = (dateStr: string) => (getStore().attendance || {})[dateStr] || {};
-export const markTeacherAttendance = async (dateStr: string, teacherId: string, status: 'present' | 'absent') => {
+export const getAttendanceStore = () => getStore().attendance || {};
+
+export const getAttendanceForDate = (dateStr: string): Record<string, AttendanceStatus> => (getStore().attendance || {})[dateStr] || {};
+export const markTeacherAttendance = async (dateStr: string, teacherId: string, status: AttendanceStatus) => {
     const store = getStore();
     if (!store.attendance) store.attendance = {};
     if (!store.attendance[dateStr]) store.attendance[dateStr] = {};
+    
     if (status === 'present') delete store.attendance[dateStr][teacherId];
-    else store.attendance[dateStr][teacherId] = 'absent';
+    else store.attendance[dateStr][teacherId] = status;
+    
     return await updateStore('attendance', store.attendance);
 };
 
@@ -215,17 +236,92 @@ export const saveTeacherInstructions = async (date: string, instructions: string
 export const getNotifications = (): AppNotification[] => getStore().notifications || [];
 export const clearNotifications = async () => updateStore('notifications', []);
 
-export const getFreeTeachers = (dateStr: string, dayName: string, periodIndex: number): Teacher[] => {
-    const teachers = getTeachers();
+/**
+ * Returns a list of periods today where a teacher is absent but no substitution is planned yet.
+ */
+export const getUnfilledAbsentPeriods = (dateStr: string, dayName: string) => {
+    const attendance = getAttendanceForDate(dateStr);
+    const base = getBaseSchedule(dayName);
+    const overrides = getDailyOverrides(dateStr);
+    const unfilled: Array<{ classId: string, periodIndex: number, originalTeacherId: string }> = [];
+
+    const LUNCH_PERIOD_INDEX = 3;
+
+    Object.keys(base).forEach(key => {
+        const entry = base[key];
+        if (!entry || !entry.teacherId) return;
+
+        const [classId, pIdxStr] = key.split('_');
+        const periodIndex = parseInt(pIdxStr);
+        if (periodIndex === LUNCH_PERIOD_INDEX) return;
+
+        const status = attendance[entry.teacherId];
+        if (!status || status === 'present') return;
+
+        const isAbsentMorning = status === 'absent' || status === 'half_day_before';
+        const isAbsentAfternoon = status === 'absent' || status === 'half_day_after';
+        
+        const isCurrentlyAbsent = periodIndex < LUNCH_PERIOD_INDEX ? isAbsentMorning : isAbsentAfternoon;
+        if (!isCurrentlyAbsent) return;
+
+        const override = overrides[key];
+        if (override && (override.subTeacherId || override.subNote)) return;
+
+        unfilled.push({ classId, periodIndex, originalTeacherId: entry.teacherId });
+    });
+
+    return unfilled;
+};
+
+/**
+ * Detailed status for a teacher at a specific time.
+ */
+export type TeacherDetailedStatus = {
+    type: 'FREE' | 'BUSY' | 'ABSENT' | 'MORNING_LEAVE' | 'AFTERNOON_LEAVE',
+    busyInClass?: string
+};
+
+export const getTeacherDetailedStatus = (teacherId: string, dateStr: string, dayName: string, periodIndex: number): TeacherDetailedStatus => {
     const attendance = getAttendanceForDate(dateStr);
     const schedule = getEffectiveSchedule(dateStr, dayName);
-    return teachers.filter(t => {
-        if (attendance[t.id] === 'absent') return false;
-        return !Object.keys(schedule).some(key => {
-            const [_, pIdx] = key.split('_');
-            if (parseInt(pIdx) !== periodIndex) return false;
-            const entry = schedule[key];
-            return entry && (entry.teacherId === t.id || entry.subTeacherId === t.id || entry.splitTeacherId === t.id);
-        });
+    const status = attendance[teacherId];
+    const LUNCH_PERIOD_INDEX = 3;
+
+    if (status === 'absent') return { type: 'ABSENT' };
+    if (status === 'half_day_before' && periodIndex < LUNCH_PERIOD_INDEX) return { type: 'MORNING_LEAVE' };
+    if (status === 'half_day_after' && periodIndex > LUNCH_PERIOD_INDEX) return { type: 'AFTERNOON_LEAVE' };
+
+    const busySlotKey = Object.keys(schedule).find(key => {
+        const [_, pIdxStr] = key.split('_');
+        if (parseInt(pIdxStr) !== periodIndex) return false;
+        const entry = schedule[key];
+        return entry && (entry.teacherId === teacherId || entry.subTeacherId === teacherId || entry.splitTeacherId === teacherId);
     });
+
+    if (busySlotKey) {
+        const [classId] = busySlotKey.split('_');
+        const cls = getClasses().find(c => c.id === classId);
+        return { type: 'BUSY', busyInClass: cls?.name || 'Class' };
+    }
+
+    return { type: 'FREE' };
+};
+
+export const getFreeTeachers = (dateStr: string, dayName: string, periodIndex: number): Teacher[] => {
+    const teachers = getTeachers();
+    return teachers.filter(t => getTeacherDetailedStatus(t.id, dateStr, dayName, periodIndex).type === 'FREE');
+};
+
+export const getTeacherScheduleForDay = (teacherId: string, dateStr: string, dayName: string) => {
+    const effective = getEffectiveSchedule(dateStr, dayName);
+    const results: Array<{ classId: string, periodIndex: number, entry: any }> = [];
+    
+    Object.keys(effective).forEach(key => {
+        const entry = effective[key];
+        if (entry.teacherId === teacherId || entry.subTeacherId === teacherId || entry.splitTeacherId === teacherId) {
+            const [classId, pIdxStr] = key.split('_');
+            results.push({ classId, periodIndex: parseInt(pIdxStr), entry });
+        }
+    });
+    return results;
 };

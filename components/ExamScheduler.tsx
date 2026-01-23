@@ -6,16 +6,36 @@ import { CalendarDays, Clock, Book, Plus, Trash2, Layers, Grid, Save, Download, 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+const safeAddImage = async (doc: jsPDF, url: string, x: number, y: number, w: number, h: number) => {
+    try {
+        const response = await fetch(url, { mode: 'cors' });
+        const contentType = response.headers.get('content-type');
+        if (!response.ok || !contentType?.startsWith('image/')) throw new Error("Not a valid image");
+        const blob = await response.blob();
+        const reader = new FileReader();
+        return new Promise<void>((resolve) => {
+            reader.onloadend = () => {
+                const base64data = reader.result as string;
+                doc.addImage(base64data, 'PNG', x, y, w, h);
+                resolve();
+            };
+            reader.onerror = () => resolve();
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.warn("Failed to load PDF logo:", e);
+        return Promise.resolve();
+    }
+};
+
 export const ExamScheduler: React.FC = () => {
     const [exams, setExams] = useState<ExamSchedule[]>([]);
     const [classes, setClasses] = useState<ClassSection[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [activeTab, setActiveTab] = useState<'list' | 'generator'>('list');
     
-    // Filters (List Mode)
     const [filterType, setFilterType] = useState('All');
 
-    // Generator State
     const [genExamName, setGenExamName] = useState('Mid Term Exam 2025');
     const [genStartDate, setGenStartDate] = useState('');
     const [genEndDate, setGenEndDate] = useState('');
@@ -29,7 +49,6 @@ export const ExamScheduler: React.FC = () => {
     const [gridData, setGridData] = useState<Record<string, { subject: string, invigilatorId?: string }>>({});
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-    // Memoized data for the list view to ensure accessibility in JSX
     const groupedExams = useMemo(() => {
         const filtered = filterType === 'All' ? exams : exams.filter(e => e.examType === filterType);
         return filtered.reduce((acc, exam) => {
@@ -126,7 +145,6 @@ export const ExamScheduler: React.FC = () => {
     const isSunday = (dateStr: string) => new Date(dateStr).getDay() === 0;
 
     const handleSaveGrid = () => {
-        // Explicitly cast entries to fix 'unknown' property access errors
         const entries = Object.entries(gridData) as [string, { subject: string, invigilatorId?: string }][];
         const entriesToSave = entries.filter(([_, val]) => val.subject.trim() !== "");
         
@@ -163,9 +181,10 @@ export const ExamScheduler: React.FC = () => {
         }
     };
 
-    const downloadDateSheet = () => {
+    const downloadDateSheet = async () => {
         const doc = new jsPDF();
-        doc.addImage(SCHOOL_LOGO_URL, 'PNG', 10, 10, 25, 25);
+        await safeAddImage(doc, SCHOOL_LOGO_URL, 10, 10, 25, 25);
+        
         doc.setFontSize(22);
         doc.setTextColor(2, 132, 199);
         doc.text("SILVER STAR CONVENT SCHOOL", 105, 20, { align: 'center' });
@@ -359,13 +378,6 @@ export const ExamScheduler: React.FC = () => {
                                 </div>
                             </div>
                         ))}
-                        {sortedDates.length === 0 && (
-                            <div className="py-20 text-center bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                                <FileText className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                                <h3 className="text-lg font-bold text-slate-400">No Exam Data Found</h3>
-                                <p className="text-xs text-slate-500 mt-2">Generate a new date sheet to see records here.</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
