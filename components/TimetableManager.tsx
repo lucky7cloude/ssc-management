@@ -546,7 +546,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                         <button onClick={() => setAssignType('FREE')} className={`flex-1 flex items-center justify-center gap-3 py-5 text-sm font-black uppercase tracking-widest rounded-3xl transition-all ${assignType === 'FREE' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-2xl scale-[1.03] ring-1 ring-slate-200/50' : 'text-slate-400 hover:text-slate-700'}`}><Sparkles className="w-5 h-5" /> Self Study</button>
                     </div>
 
-                    <div className="flex-1 p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 overflow-y-auto custom-scrollbar">
+                    <div className="flex-1 p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 overflow-y-auto custom-scrollbar border-b dark:border-slate-800">
                         {/* Configuration Column */}
                         <div className="lg:col-span-8 space-y-10">
                             {assignType === 'FREE' ? (
@@ -691,7 +691,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                                 </div>
                             </div>
                             
-                            <button onClick={handleSaveSlot} className="w-full py-6 bg-slate-900 dark:bg-brand-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.4em] shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:translate-y-[-4px] active:translate-y-[2px] transition-all flex items-center justify-center gap-4">
+                            <button onClick={handleSaveSlot} className="w-full py-6 bg-slate-900 dark:bg-brand-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.4em] shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:translate-y-[-4px] active:translate-y-[2px] transition-all flex items-center justify-center gap-4 shrink-0">
                                 <Save className="w-6 h-6" /> Commit Changes
                             </button>
                         </div>
