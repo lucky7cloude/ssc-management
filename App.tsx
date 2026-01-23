@@ -34,9 +34,23 @@ const App: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR'>('IDLE');
   const [lastSyncTime, setLastSyncTime] = useState<string>('Connecting...');
 
-  // 1. App Bootloader - Always fetch cloud data first
+  // 1. App Bootloader & Auto-Link Configuration
   useEffect(() => {
     const bootApp = async () => {
+        // CHECK FOR AUTO-LINK: ?db=<uuid>
+        const params = new URLSearchParams(window.location.search);
+        const dbKey = params.get('db');
+        
+        if (dbKey) {
+            // Found a shared key! Set it and clean URL.
+            console.log("Auto-connecting to DB:", dbKey);
+            dataService.setSyncId(dbKey);
+            // We use history replaceState to remove the key from the visual URL so it looks clean
+            window.history.replaceState({}, document.title, "/");
+            // NOTE: setSyncId triggers a reload, so execution stops here usually.
+            return;
+        }
+
         await dataService.fetchAllData();
         setIsCloudLoaded(true);
         setLastSyncTime('Live Cloud Connected');
@@ -64,21 +78,27 @@ const App: React.FC = () => {
         if (updated) {
             setLastSyncTime('Synced ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         }
-    }, 30000);
+    }, 15000); // Increased polling frequency
 
     const handleSyncStatus = (e: any) => setSyncStatus(e.detail);
     const handleDataUpdated = () => {
         setLastSyncTime('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         setNotifications(dataService.getNotifications());
     };
+    const handleToast = (e: any) => {
+        setToast(e.detail);
+        setTimeout(() => setToast(null), 3000);
+    };
 
     window.addEventListener('sync-status' as any, handleSyncStatus);
     window.addEventListener('data-updated', handleDataUpdated);
+    window.addEventListener('show-toast' as any, handleToast);
     
     return () => {
         clearInterval(pollInterval);
         window.removeEventListener('sync-status' as any, handleSyncStatus);
         window.removeEventListener('data-updated', handleDataUpdated);
+        window.removeEventListener('show-toast' as any, handleToast);
     }
   }, [isCloudLoaded]);
 
@@ -129,7 +149,7 @@ const App: React.FC = () => {
                     <img src={SCHOOL_LOGO_URL} alt="Logo" className="w-full h-full object-contain" loading="eager" crossOrigin="anonymous" />
                  </div>
                  <h1 className="text-4xl font-serif font-black text-slate-800 dark:text-slate-100">Silver Star</h1>
-                 <p className="text-slate-500 dark:text-slate-400 font-black tracking-[0.4em] uppercase text-[11px] mt-2">Institutional Management • v2.5</p>
+                 <p className="text-slate-500 dark:text-slate-400 font-black tracking-[0.4em] uppercase text-[11px] mt-2">Institutional Management • v2.6 Cloud</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
                   <button onClick={() => handleRoleSelect('PRINCIPAL')} className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-xl border-2 border-transparent hover:border-brand-500 transition-all flex flex-col items-center text-center group">

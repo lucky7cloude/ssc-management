@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { Cloud, Share2, RefreshCw, Key, ShieldCheck, Database, Globe } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Cloud, Share2, RefreshCw, Key, ShieldCheck, Database, Globe, Copy, Check, Link as LinkIcon } from 'lucide-react';
 import * as dataService from '../services/dataService';
 import { UserRole, SCHOOL_LOGO_URL } from '../types';
 
@@ -9,12 +8,18 @@ interface Props {
 }
 
 export const SettingsManager: React.FC<Props> = ({ currentRole }) => {
-    const [syncId, setSyncId] = useState(dataService.getSyncId());
+    const [syncId, setSyncId] = useState(dataService.getSyncId() || '');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [linkCopied, setLinkCopied] = useState(false);
+
+    useEffect(() => {
+        setSyncId(dataService.getSyncId() || '');
+    }, []);
 
     const handleUpdateSyncId = (e: React.FormEvent) => {
         e.preventDefault();
-        if(confirm("Changing the Database Key will disconnect you from the current data. Are you sure?")) {
+        if(confirm("Changing the Database Key will switch you to a different data stream. If the key is incorrect, you may see empty data. Proceed?")) {
             dataService.setSyncId(syncId);
         }
     };
@@ -22,10 +27,26 @@ export const SettingsManager: React.FC<Props> = ({ currentRole }) => {
     const handleManualPull = async () => {
         setIsSyncing(true);
         const result = await dataService.fetchAllData();
+        setSyncId(dataService.getSyncId() || ''); // Update ID if it was auto-created
         setIsSyncing(false);
         if (result) {
-            window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Synced with Cloud", type: 'success' } }));
+            window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Cloud Sync Complete", type: 'success' } }));
         }
+    };
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(syncId);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Key Copied", type: 'success' } }));
+    };
+
+    const copyShareLink = () => {
+        const url = `${window.location.origin}/?db=${syncId}`;
+        navigator.clipboard.writeText(url);
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Connection Link Copied", type: 'success' } }));
     };
 
     return (
@@ -41,7 +62,7 @@ export const SettingsManager: React.FC<Props> = ({ currentRole }) => {
                         </div>
                         <h2 className="text-3xl font-bold font-serif">Cloud Core</h2>
                     </div>
-                    <p className="text-slate-400 text-sm font-medium">Your data is stored globally and synced in real-time across all devices using your unique School Access Key.</p>
+                    <p className="text-slate-400 text-sm font-medium">Your data is stored securely in the cloud. Connect multiple devices to this database to see real-time updates everywhere.</p>
                 </div>
 
                 <div className="p-10 space-y-10">
@@ -49,13 +70,13 @@ export const SettingsManager: React.FC<Props> = ({ currentRole }) => {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between border-b dark:border-slate-800 pb-3">
                             <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                <Key className="w-4 h-4 text-brand-500" /> School Access Key
+                                <Key className="w-4 h-4 text-brand-500" /> Active Connection
                             </h4>
-                            <span className="text-[9px] font-bold text-green-500 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full uppercase">Active</span>
+                            <span className="text-[9px] font-bold text-green-500 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full uppercase">Online</span>
                         </div>
                         <div className="p-8 bg-slate-50 dark:bg-slate-950 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-6">
                             <p className="text-xs text-slate-500 leading-relaxed italic">
-                                This key is your "Database Address". Share this key with other staff members so they can see the same timetable and teacher records on their own devices.
+                                <strong>Setup Instruction:</strong> Copy the "Connection Link" below and send it to other teachers. When they open the link, their app will automatically connect to this database.
                             </p>
                             
                             <form onSubmit={handleUpdateSyncId} className="space-y-3">
@@ -65,24 +86,28 @@ export const SettingsManager: React.FC<Props> = ({ currentRole }) => {
                                         type="text" 
                                         value={syncId} 
                                         onChange={(e) => setSyncId(e.target.value)}
-                                        className="w-full pl-12 pr-4 h-14 text-sm font-bold bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-2xl shadow-inner"
-                                        placeholder="Enter Database Key..."
+                                        className="w-full pl-12 pr-4 h-14 text-xs font-mono bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-2xl shadow-inner text-slate-600 dark:text-slate-300"
+                                        placeholder="Database ID..."
                                     />
                                 </div>
-                                <div className="flex gap-3">
-                                    <button type="submit" className="flex-1 bg-brand-600 text-white h-12 rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:bg-brand-700 transition-all">Update Key</button>
-                                    <button type="button" onClick={() => {
-                                        navigator.clipboard.writeText(syncId);
-                                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: "Key Copied", type: 'success' } }));
-                                    }} className="px-6 h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
-                                        <Share2 className="w-5 h-5 text-slate-500" />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button type="button" onClick={copyShareLink} className="h-12 bg-brand-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-700 transition-all shadow-md active:scale-95">
+                                        {linkCopied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />} Share Link
+                                    </button>
+                                    <button type="button" onClick={copyToClipboard} className="h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+                                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} Copy Key
+                                    </button>
+                                </div>
+                                <div className="pt-2">
+                                    <button type="submit" className="w-full h-10 text-slate-400 hover:text-slate-600 text-[10px] font-bold underline decoration-dotted">
+                                        Manually Update Key (Advanced)
                                     </button>
                                 </div>
                             </form>
                             
-                            <div className="pt-2">
+                            <div className="pt-2 border-t dark:border-slate-800">
                                 <button onClick={handleManualPull} disabled={isSyncing} className="w-full h-12 bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-black transition-all shadow-lg">
-                                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} /> Refresh Database
+                                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} /> Force Cloud Sync
                                 </button>
                             </div>
                         </div>

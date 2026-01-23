@@ -1,30 +1,70 @@
 
 import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, Substitution, AppNotification, PERIODS, DAYS, TeacherMeeting, AttendanceStatus } from '../types';
 
-const PREFIX = 'silver_star_cloud_v5_';
+const PREFIX = 'silver_star_cloud_v6_'; // Incremented version
 const CLOUD_SYNC_KEY = PREFIX + 'database_id';
 const LOCAL_CACHE_KEY = PREFIX + 'local_db_cache';
 
-const DEFAULT_SYNC_ID = 'silver-star-convent-school-official-db-2025';
+// JSONBlob Endpoint
+const BLOB_API = 'https://jsonblob.com/api/jsonBlob';
 
-export const getSyncId = () => localStorage.getItem(CLOUD_SYNC_KEY) || DEFAULT_SYNC_ID;
+export const getSyncId = () => localStorage.getItem(CLOUD_SYNC_KEY);
 
 export const setSyncId = (id: string) => {
     localStorage.setItem(CLOUD_SYNC_KEY, id);
+    // Force a reload to ensure fresh state
     window.location.reload(); 
 };
 
 // --- CLOUD ENGINE ---
 
+const createNewDatabase = async (initialData: any) => {
+    try {
+        const response = await fetch(BLOB_API, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(initialData),
+            mode: 'cors'
+        });
+        
+        if (response.ok) {
+            const location = response.headers.get('Location');
+            if (location) {
+                const newId = location.split('/').pop(); // Extract ID from URL
+                if (newId) {
+                    localStorage.setItem(CLOUD_SYNC_KEY, newId);
+                    return newId;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to create cloud DB:", e);
+    }
+    return null;
+};
+
 const pushToCloud = async (data: any) => {
     if (!navigator.onLine) return false;
-    const id = getSyncId();
+    let id = getSyncId();
+    
+    // If no ID exists, create one first
+    if (!id) {
+        id = await createNewDatabase(data);
+        if (!id) return false; // Creation failed
+    }
+
     data.lastUpdated = Date.now();
     try {
-        const response = await fetch(`https://keyvalue.xyz/1/${id}`, {
-            method: 'POST',
+        const response = await fetch(`${BLOB_API}/${id}`, {
+            method: 'PUT',
             body: JSON.stringify(data),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             mode: 'cors'
         });
         return response.ok;
@@ -35,20 +75,35 @@ const pushToCloud = async (data: any) => {
 };
 
 export const fetchAllData = async () => {
-    const id = getSyncId();
+    let id = getSyncId();
+    
     try {
         if (!navigator.onLine) throw new Error("Offline");
-        
-        const res = await fetch(`https://keyvalue.xyz/1/${id}`, { mode: 'cors' });
-        if (!res.ok) {
-            const localData = getStore();
-            await pushToCloud(localData);
-            return localData;
+
+        // If no ID, create a fresh database with local default data
+        if (!id) {
+            const localDefault = getStore();
+            await pushToCloud(localDefault); // This sets the ID in localStorage
+            return localDefault;
         }
+        
+        const res = await fetch(`${BLOB_API}/${id}`, { 
+            mode: 'cors',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!res.ok) {
+            // If 404, the blob might be expired or invalid. 
+            // We keep local data but don't overwrite cloud unless user explicitly resets.
+            console.warn("Cloud DB not found or error.");
+            return getStore();
+        }
+
         const cloudData = await res.json();
         if (cloudData && typeof cloudData === 'object') {
             const local = getStore();
-            if (!local.lastUpdated || (cloudData.lastUpdated && cloudData.lastUpdated > local.lastUpdated)) {
+            // Simple conflict resolution: Cloud wins if it's newer or we are forcing a pull
+            if (!local.lastUpdated || (cloudData.lastUpdated && cloudData.lastUpdated >= local.lastUpdated)) {
                 localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(cloudData));
                 window.dispatchEvent(new CustomEvent('data-updated'));
             }
@@ -273,9 +328,6 @@ export const getUnfilledAbsentPeriods = (dateStr: string, dayName: string) => {
     return unfilled;
 };
 
-/**
- * Detailed status for a teacher at a specific time.
- */
 export type TeacherDetailedStatus = {
     type: 'FREE' | 'BUSY' | 'ABSENT' | 'MORNING_LEAVE' | 'AFTERNOON_LEAVE',
     busyInClass?: string
