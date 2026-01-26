@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ClassSection, PERIODS, Teacher, UserRole, ScheduleEntry, DailyOverride, SCHOOL_LOGO_URL, DAYS, AttendanceStatus } from '../types';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ClassSection, PERIODS, Teacher, UserRole, ScheduleEntry, DailyOverride } from '../types';
 import * as dataService from '../services/dataService';
+import { postgresService } from '../services/postgresService';
+import { isDbConnected } from '../lib/db';
 import { 
-  ChevronRight, ChevronLeft, X, Layout, Plus, Trash2, Layers, Repeat, Info, Download, 
-  Calendar as CalendarIcon, ClipboardList, UserCheck, MessageCircleWarning, ArrowRight, Save, 
-  Settings as SettingsIcon, CalendarDays, RefreshCw, Maximize2, Minimize2, Loader2 
+  ChevronRight, ChevronLeft, X, Layout, Plus, Calendar as CalendarIcon, 
+  Loader2, Save, RefreshCw, AlertTriangle, DatabaseZap 
 } from 'lucide-react';
 
 interface Props {
@@ -18,52 +20,67 @@ const getPeriodLabel = (index: number) => {
 };
 
 export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
-  const [classes, setClasses] = useState<ClassSection[]>([]);
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
-  const [selectedDayName, setSelectedDayName] = useState<string>('Monday');
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [timetableMode, setTimetableMode] = useState<'DAILY' | 'BASE'>('DAILY');
-  const [viewTheme, setViewTheme] = useState<'COMPACT' | 'DETAILED'>('DETAILED');
-  const [scheduleData, setScheduleData] = useState<Record<string, any>>({});
-  const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<'SECONDARY' | 'SENIOR_SECONDARY'>('SECONDARY');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{classId: string, periodIndex: number} | null>(null);
   
-  const [assignType, setAssignType] = useState<'NORMAL' | 'SPLIT' | 'FREE'>('NORMAL');
+  // Local form state
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [periodNote, setPeriodNote] = useState('');
 
-  const loadAll = async () => {
-    setIsLoading(true);
-    try {
-        const [fetchedClasses, fetchedTeachers] = await Promise.all([
-            dataService.getClasses(),
-            dataService.getTeachers()
-        ]);
-        setClasses(fetchedClasses);
-        setTeachers(fetchedTeachers);
-        
-        const [year, month, day] = selectedDate.split('-').map(Number);
-        const dateObj = new Date(year, month - 1, day);
-        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-        setSelectedDayName(dayName);
+  // Derived Day Name
+  const selectedDayName = useMemo(() => {
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long' });
+  }, [selectedDate]);
 
-        const data = timetableMode === 'BASE' 
-            ? await dataService.getBaseSchedule(dayName) 
-            : await dataService.getEffectiveSchedule(selectedDate, dayName);
-        setScheduleData(data);
-    } catch (e) {
-        console.error(e);
-    } finally {
-        setIsLoading(false);
+  // Fetch Static Data
+  const { data: staticData } = useQuery({
+    queryKey: ['static-data'],
+    queryFn: async () => {
+        const [c, t] = await Promise.all([dataService.getClasses(), dataService.getTeachers()]);
+        return { classes: c, teachers: t };
+    },
+    staleTime: 60000 // Cache static data for 1 min
+  });
+
+  const teachers = staticData?.teachers || [];
+  const classes = staticData?.classes || [];
+
+  // REAL-TIME FETCHING: Refetch interval 3000ms ensures changes sync across devices
+  const { data: scheduleData = {}, isFetching, isError } = useQuery({
+    queryKey: ['schedule', selectedDate, timetableMode, selectedDayName],
+    queryFn: () => postgresService.timetable.getEffective(selectedDate, selectedDayName),
+    refetchInterval: isDbConnected ? 3000 : false,
+    placeholderData: (prev) => prev,
+    enabled: true // Always enabled, but postgresService handles missing DB internally
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: any) => {
+        if (!isDbConnected) {
+            alert("Changes cannot be saved: No database connection found.");
+            return;
+        }
+        if (timetableMode === 'BASE') {
+            return await postgresService.timetable.saveBase(selectedDayName, payload.classId, payload.periodIndex, payload.entry);
+        } else {
+            return await postgresService.timetable.saveOverride(selectedDate, selectedDayName, payload.classId, payload.periodIndex, payload.override);
+        }
+    },
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['schedule'] });
+        setIsModalOpen(false);
+    },
+    onError: (err) => {
+        console.error("Mutation failed:", err);
+        alert("Failed to save changes. Please check your connection.");
     }
-  };
-
-  useEffect(() => {
-    loadAll();
-  }, [selectedDate, timetableMode]);
+  });
 
   const adjustDate = (days: number) => {
       const [year, month, day] = selectedDate.split('-').map(Number);
@@ -78,6 +95,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   const handleCellClick = (classId: string, periodIndex: number) => {
     if (PERIODS[periodIndex].start === "11:15 AM") return;
+    if (currentRole !== 'PRINCIPAL' && currentRole !== 'MANAGEMENT') return;
+    
     setEditingSlot({ classId, periodIndex });
     const entry = scheduleData[`${classId}_${periodIndex}`];
     
@@ -87,32 +106,25 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     setIsModalOpen(true);
   };
 
-  const handleSaveSlot = async () => {
+  const handleSaveSlot = () => {
     if (!editingSlot) return;
-    setIsLoading(true);
     const { classId, periodIndex } = editingSlot;
     
-    const payload: any = {
-        teacherId: selectedTeacherId,
-        subject: selectedSubject,
-        note: periodNote
+    const baseEntry: ScheduleEntry = { teacherId: selectedTeacherId, subject: selectedSubject, note: periodNote };
+    const overrideEntry: DailyOverride = { 
+        subTeacherId: selectedTeacherId, 
+        subSubject: selectedSubject, 
+        subNote: periodNote, 
+        originalTeacherId: '', 
+        type: 'SUBSTITUTION' 
     };
 
-    if (timetableMode === 'BASE') {
-        await dataService.saveBaseEntry(selectedDayName, classId, periodIndex, payload.teacherId || payload.note ? payload : null);
-    } else {
-        await dataService.saveDailyOverride(selectedDate, classId, periodIndex, payload.teacherId || payload.note ? {
-            ...payload,
-            subTeacherId: payload.teacherId,
-            subSubject: payload.subject,
-            subNote: payload.note,
-            originalTeacherId: '',
-            type: 'SUBSTITUTION'
-        } : null);
-    }
-    
-    await loadAll();
-    setIsModalOpen(false);
+    saveMutation.mutate({
+        classId,
+        periodIndex,
+        entry: (selectedTeacherId || periodNote) ? baseEntry : null,
+        override: (selectedTeacherId || periodNote) ? overrideEntry : null
+    });
   };
 
   const renderCell = (classId: string, periodIndex: number) => {
@@ -122,10 +134,12 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     const entry = scheduleData[`${classId}_${periodIndex}`];
     if (entry) {
         const t = teachers.find(t => t.id === (entry.subTeacherId || entry.teacherId));
+        const isOverride = !!entry.isOverride;
         return (
-            <div onClick={() => handleCellClick(classId, periodIndex)} className={`h-full w-full p-2 border-l-4 rounded-xl cursor-pointer shadow-sm relative flex flex-col justify-center transition-all bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800`} style={{ borderLeftColor: t?.color || '#ccc' }}>
+            <div onClick={() => handleCellClick(classId, periodIndex)} className={`h-full w-full p-2 border-l-4 rounded-xl cursor-pointer shadow-sm relative flex flex-col justify-center transition-all ${isOverride ? 'bg-brand-50/50 dark:bg-brand-900/10 animate-pulse-once' : 'bg-white dark:bg-slate-900'} border-slate-100 dark:border-slate-800`} style={{ borderLeftColor: t?.color || '#ccc' }}>
                 <div className="font-black text-[10px] truncate leading-tight mb-0.5">{entry.subSubject || entry.subject}</div>
                 <div className="text-[9px] truncate leading-tight font-bold text-slate-500">{t?.name || 'Vacant'}</div>
+                {isOverride && <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-brand-500 rounded-full"></div>}
             </div>
         );
     }
@@ -134,13 +148,27 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   return (
     <div className="space-y-6 relative">
-      {isLoading && (
-          <div className="absolute inset-0 z-[100] bg-white/50 dark:bg-slate-950/50 backdrop-blur-sm flex items-center justify-center rounded-[3rem]">
-              <div className="flex flex-col items-center gap-4 bg-white dark:bg-slate-900 p-8 rounded-[2rem] shadow-2xl border dark:border-slate-800">
-                  <Loader2 className="w-10 h-10 text-brand-600 animate-spin" />
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Syncing Data...</span>
+      {/* DB Connection Alert Banner */}
+      {!isDbConnected && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 p-4 rounded-2xl flex items-center gap-4 animate-fade-in shadow-sm no-print">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center shrink-0">
+                  <DatabaseZap className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                  <h4 className="text-sm font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest leading-none mb-1">Database connection pending</h4>
+                  <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider">Sync features work on Vercel deployment. Using local view mode.</p>
+              </div>
+              <div className="px-3 py-1 bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                  Preview Only
               </div>
           </div>
+      )}
+
+      {isError && (
+           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-4 rounded-2xl flex items-center gap-4 animate-fade-in no-print">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <p className="text-xs font-bold text-red-800 dark:text-red-400">Error syncing with server. Please refresh your browser.</p>
+           </div>
       )}
 
       <div className="flex flex-col lg:flex-row gap-4 items-center justify-between no-print bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] shadow-xl border border-slate-200/50 dark:border-slate-800/50">
@@ -161,6 +189,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         </div>
 
         <div className="flex items-center gap-3">
+            {isFetching && <RefreshCw className="w-4 h-4 text-brand-500 animate-spin mr-2" />}
             <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl border dark:border-slate-700/50">
                 <button onClick={() => setActiveSection('SECONDARY')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${activeSection === 'SECONDARY' ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-md' : 'text-slate-400 opacity-60'}`}>SEC</button>
                 <button onClick={() => setActiveSection('SENIOR_SECONDARY')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${activeSection === 'SENIOR_SECONDARY' ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-md' : 'text-slate-400 opacity-60'}`}>SR SEC</button>
@@ -209,7 +238,15 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                           <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Subject</label>
                           <input type="text" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full text-sm h-11" placeholder="e.g. Mathematics" />
                       </div>
-                      <button onClick={handleSaveSlot} className="w-full bg-brand-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-700 shadow-xl transition-all">Save Changes</button>
+                      <button 
+                        onClick={handleSaveSlot} 
+                        disabled={saveMutation.isPending || !isDbConnected}
+                        className="w-full bg-brand-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-700 shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        {!isDbConnected ? 'DB DISCONNECTED' : saveMutation.isPending ? 'Syncing...' : 'Save Changes'}
+                      </button>
+                      {!isDbConnected && <p className="text-[9px] text-amber-600 font-bold uppercase text-center">Save disabled in preview mode</p>}
                   </div>
               </div>
           </div>
