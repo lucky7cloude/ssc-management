@@ -95,6 +95,24 @@ export type PeriodTime = {
   end: string;
 };
 
+// Fix: Export default classes for initial mock database setup
+export const DEFAULT_CLASSES: ClassSection[] = [
+  { id: '6A', name: '6-A', section: 'SECONDARY' },
+  { id: '6B', name: '6-B', section: 'SECONDARY' },
+  { id: '7A', name: '7-A', section: 'SECONDARY' },
+  { id: '7B', name: '7-B', section: 'SECONDARY' },
+  { id: '8A', name: '8-A', section: 'SECONDARY' },
+  { id: '8B', name: '8-B', section: 'SECONDARY' },
+  { id: '9A', name: '9-A', section: 'SECONDARY' },
+  { id: '9B', name: '9-B', section: 'SECONDARY' },
+  { id: '10A', name: '10-A', section: 'SECONDARY' },
+  { id: '10B', name: '10-B', section: 'SECONDARY' },
+  { id: '11SCI', name: '11-Sci', section: 'SENIOR_SECONDARY' },
+  { id: '11COM', name: '11-Com', section: 'SENIOR_SECONDARY' },
+  { id: '12SCI', name: '12-Sci', section: 'SENIOR_SECONDARY' },
+  { id: '12COM', name: '12-Com', section: 'SENIOR_SECONDARY' },
+];
+
 export const PERIODS: PeriodTime[] = [
   { start: "09:15 AM", end: "09:55 AM" }, // 0
   { start: "09:55 AM", end: "10:35 AM" }, // 1

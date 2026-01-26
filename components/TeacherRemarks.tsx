@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Teacher, TeacherRemark, UserRole } from '../types';
 import * as dataService from '../services/dataService';
-import { FileText, Plus, Trash2, Download, Search, Calendar, Filter } from 'lucide-react';
+import { FileText, Plus, Trash2, Download, Search, Calendar, Filter, Loader2 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -13,6 +12,7 @@ interface Props {
 export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [remarks, setRemarks] = useState<TeacherRemark[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     
     // Form State
     const [selectedTeacherId, setSelectedTeacherId] = useState('');
@@ -25,16 +25,31 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
     const [reportMonth, setReportMonth] = useState(new Date().getMonth().toString());
     const [reportYear, setReportYear] = useState(new Date().getFullYear().toString());
 
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            const [tData, rData] = await Promise.all([
+                dataService.getTeachers(),
+                dataService.getRemarks()
+            ]);
+            setTeachers(tData);
+            setRemarks(rData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        } catch (e) {
+            console.error("Error loading remarks:", e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        setTeachers(dataService.getTeachers());
-        setRemarks(dataService.getRemarks().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        loadData();
     }, []);
 
-    // Fix: Made handleSubmit async to handle promise from dataService
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!selectedTeacherId || !date || !note.trim()) return;
 
+        setIsLoading(true);
         const newRemark: TeacherRemark = {
             id: Date.now().toString(),
             teacherId: selectedTeacherId,
@@ -43,18 +58,24 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
             type: remarkType
         };
 
-        // Fix: Await the promise before sorting the resulting array
-        const updated = await dataService.addRemark(newRemark);
-        setRemarks(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        setNote('');
+        try {
+            const updated = await dataService.addRemark(newRemark);
+            setRemarks(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setNote('');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    // Fix: Made handleDelete async to handle promise from dataService
     const handleDelete = async (id: string) => {
         if(confirm("Are you sure you want to delete this remark?")){
-            // Fix: Await the promise before sorting the resulting array
-            const updated = await dataService.deleteRemark(id);
-            setRemarks(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setIsLoading(true);
+            try {
+                const updated = await dataService.deleteRemark(id);
+                setRemarks(updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -116,23 +137,29 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
     });
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
+            {isLoading && (
+                <div className="absolute inset-0 z-10 bg-white/50 dark:bg-slate-950/50 backdrop-blur-[1px] flex items-center justify-center rounded-2xl">
+                    <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+                </div>
+            )}
+
             <div className="flex flex-col lg:flex-row gap-6">
                 
                 {/* Form Section - Only visible to Principal/Management */}
                 {(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') && (
                     <div className="lg:w-1/3 space-y-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">
+                            <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                                 <Plus className="w-5 h-5 text-brand-600" /> Add New Remark
                             </h3>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Teacher</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Teacher</label>
                                     <select 
                                         value={selectedTeacherId}
                                         onChange={(e) => setSelectedTeacherId(e.target.value)}
-                                        className="w-full rounded-lg bg-slate-50 border-slate-300 border p-2.5 focus:ring-brand-500 focus:border-brand-500"
+                                        className="w-full"
                                         required
                                     >
                                         <option value="">Select Teacher</option>
@@ -142,14 +169,14 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Remark Type</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Remark Type</label>
                                     <div className="flex gap-2">
                                         {['General', 'Monthly', 'Yearly'].map(type => (
                                             <button
                                                 key={type}
                                                 type="button"
                                                 onClick={() => setRemarkType(type as any)}
-                                                className={`flex-1 text-xs py-2 rounded-lg border ${remarkType === type ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-slate-600 border-slate-200'}`}
+                                                className={`flex-1 text-xs py-2 rounded-lg border transition-all ${remarkType === type ? 'bg-brand-500 text-white border-brand-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}
                                             >
                                                 {type}
                                             </button>
@@ -157,31 +184,32 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Date</label>
                                     <input 
                                         type="date" 
                                         value={date}
                                         onChange={(e) => setDate(e.target.value)}
-                                        className="w-full rounded-lg bg-slate-50 border-slate-300 border p-2.5 focus:ring-brand-500 focus:border-brand-500"
+                                        className="w-full"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Remark / Note</label>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Remark / Note</label>
                                     <textarea 
                                         value={note}
                                         onChange={(e) => setNote(e.target.value)}
                                         rows={4}
-                                        placeholder="Enter performance note, behavioral remark, or achievement..."
-                                        className="w-full rounded-lg bg-slate-50 border-slate-300 border p-2.5 focus:ring-brand-500 focus:border-brand-500"
+                                        placeholder="Enter performance note..."
+                                        className="w-full"
                                         required
                                     ></textarea>
                                 </div>
                                 <button 
                                     type="submit" 
-                                    className="w-full bg-brand-600 text-white py-2.5 rounded-lg font-medium hover:bg-brand-700 transition-colors shadow-sm"
+                                    disabled={isLoading}
+                                    className="w-full bg-brand-600 text-white py-2.5 rounded-lg font-medium hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-50"
                                 >
-                                    Save Remark
+                                    {isLoading ? 'Saving...' : 'Save Remark'}
                                 </button>
                             </form>
                         </div>
@@ -192,13 +220,13 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                 <div className={`${(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') ? 'lg:w-2/3' : 'w-full'} space-y-6`}>
                     
                     {/* Filter & Download Controls */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-wrap gap-4 items-end">
                         <div className="flex-1 min-w-[200px]">
                             <label className="block text-xs font-bold text-slate-500 mb-1">Filter by Teacher</label>
                             <select 
                                 value={filterTeacherId}
                                 onChange={(e) => setFilterTeacherId(e.target.value)}
-                                className="w-full bg-slate-50 border-slate-200 rounded-lg p-2 text-sm"
+                                className="w-full"
                             >
                                 <option value="">All Teachers</option>
                                 {teachers.map(t => (
@@ -211,7 +239,7 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                             <select 
                                 value={reportMonth}
                                 onChange={(e) => setReportMonth(e.target.value)}
-                                className="w-full bg-slate-50 border-slate-200 rounded-lg p-2 text-sm"
+                                className="w-full"
                             >
                                 {Array.from({length: 12}).map((_, i) => (
                                     <option key={i} value={i}>{new Date(0, i).toLocaleString('default', { month: 'short' })}</option>
@@ -223,7 +251,7 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                             <select 
                                 value={reportYear}
                                 onChange={(e) => setReportYear(e.target.value)}
-                                className="w-full bg-slate-50 border-slate-200 rounded-lg p-2 text-sm"
+                                className="w-full"
                             >
                                 <option value="2024">2024</option>
                                 <option value="2025">2025</option>
@@ -232,16 +260,16 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                         </div>
                         <button 
                             onClick={handleDownloadReport}
-                            className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900 flex items-center gap-2"
+                            className="bg-slate-800 dark:bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900 flex items-center gap-2 border dark:border-slate-800"
                         >
                             <FileText className="w-4 h-4" /> Export Report
                         </button>
                     </div>
 
                     {/* Remarks Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             <Calendar className="w-4 h-4" /> Remarks History
                             </h3>
                             <div className="text-xs text-slate-500">
@@ -250,7 +278,7 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
                                     <tr>
                                         <th className="px-6 py-3 w-32">Date</th>
                                         <th className="px-6 py-3 w-48">Teacher</th>
@@ -261,13 +289,13 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                                         )}
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {displayedRemarks.length > 0 ? (
                                         displayedRemarks.map(r => {
                                             const teacher = teachers.find(t => t.id === r.teacherId);
                                             return (
-                                                <tr key={r.id} className="hover:bg-slate-50">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-slate-600 font-medium">
+                                                <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-xs">
                                                         {r.date}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -275,11 +303,11 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                                                             <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-bold" style={{backgroundColor: teacher?.color || '#ccc'}}>
                                                                 {teacher?.initials || '?'}
                                                             </div>
-                                                            <span className="text-slate-800 font-medium">{teacher?.name || 'Unknown'}</span>
+                                                            <span className="text-slate-800 dark:text-slate-200 font-medium text-xs">{teacher?.name || 'Unknown'}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
                                                             r.type === 'Yearly' ? 'bg-purple-100 text-purple-700' :
                                                             r.type === 'Monthly' ? 'bg-blue-100 text-blue-700' :
                                                             'bg-slate-100 text-slate-600'
@@ -287,7 +315,7 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                                                             {r.type || 'General'}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-slate-600">
+                                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400 text-xs">
                                                         {r.note}
                                                     </td>
                                                     {(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') && (
@@ -306,7 +334,7 @@ export const TeacherRemarks: React.FC<Props> = ({ currentRole }) => {
                                     ) : (
                                         <tr>
                                             <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                                                No remarks found.
+                                                {isLoading ? 'Fetching data...' : 'No remarks found.'}
                                             </td>
                                         </tr>
                                     )}
