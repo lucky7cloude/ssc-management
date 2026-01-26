@@ -3,10 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ClassSection, PERIODS, Teacher, UserRole, ScheduleEntry, DailyOverride } from '../types';
 import * as dataService from '../services/dataService';
 import { postgresService } from '../services/postgresService';
-import { isDbConnected } from '../lib/db';
 import { 
   ChevronRight, ChevronLeft, X, Layout, Plus, Calendar as CalendarIcon, 
-  Loader2, Save, RefreshCw, AlertTriangle, DatabaseZap 
+  Loader2, Save, RefreshCw, AlertTriangle
 } from 'lucide-react';
 
 interface Props {
@@ -45,27 +44,22 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         const [c, t] = await Promise.all([dataService.getClasses(), dataService.getTeachers()]);
         return { classes: c, teachers: t };
     },
-    staleTime: 60000 // Cache static data for 1 min
+    staleTime: 60000 
   });
 
   const teachers = staticData?.teachers || [];
   const classes = staticData?.classes || [];
 
-  // REAL-TIME FETCHING: Refetch interval 3000ms ensures changes sync across devices
+  // REAL-TIME FETCHING: Polling API every 3 seconds
   const { data: scheduleData = {}, isFetching, isError } = useQuery({
     queryKey: ['schedule', selectedDate, timetableMode, selectedDayName],
     queryFn: () => postgresService.timetable.getEffective(selectedDate, selectedDayName),
-    refetchInterval: isDbConnected ? 3000 : false,
+    refetchInterval: 3000,
     placeholderData: (prev) => prev,
-    enabled: true // Always enabled, but postgresService handles missing DB internally
   });
 
   const saveMutation = useMutation({
     mutationFn: async (payload: any) => {
-        if (!isDbConnected) {
-            alert("Changes cannot be saved: No database connection found.");
-            return;
-        }
         if (timetableMode === 'BASE') {
             return await postgresService.timetable.saveBase(selectedDayName, payload.classId, payload.periodIndex, payload.entry);
         } else {
@@ -78,7 +72,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     },
     onError: (err) => {
         console.error("Mutation failed:", err);
-        alert("Failed to save changes. Please check your connection.");
+        alert("Failed to save changes. Please check your internet connection.");
     }
   });
 
@@ -148,26 +142,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   return (
     <div className="space-y-6 relative">
-      {/* DB Connection Alert Banner */}
-      {!isDbConnected && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 p-4 rounded-2xl flex items-center gap-4 animate-fade-in shadow-sm no-print">
-              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center shrink-0">
-                  <DatabaseZap className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div className="flex-1">
-                  <h4 className="text-sm font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest leading-none mb-1">Database connection pending</h4>
-                  <p className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider">Sync features work on Vercel deployment. Using local view mode.</p>
-              </div>
-              <div className="px-3 py-1 bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                  Preview Only
-              </div>
-          </div>
-      )}
-
       {isError && (
            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 p-4 rounded-2xl flex items-center gap-4 animate-fade-in no-print">
               <AlertTriangle className="w-5 h-5 text-red-600" />
-              <p className="text-xs font-bold text-red-800 dark:text-red-400">Error syncing with server. Please refresh your browser.</p>
+              <p className="text-xs font-bold text-red-800 dark:text-red-400">Error syncing with the server. Please check your database connection or deployment.</p>
            </div>
       )}
 
@@ -240,13 +218,12 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                       </div>
                       <button 
                         onClick={handleSaveSlot} 
-                        disabled={saveMutation.isPending || !isDbConnected}
-                        className="w-full bg-brand-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-700 shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={saveMutation.isPending}
+                        className="w-full bg-brand-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-700 shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        {!isDbConnected ? 'DB DISCONNECTED' : saveMutation.isPending ? 'Syncing...' : 'Save Changes'}
+                        {saveMutation.isPending ? 'Syncing...' : 'Save Changes'}
                       </button>
-                      {!isDbConnected && <p className="text-[9px] text-amber-600 font-bold uppercase text-center">Save disabled in preview mode</p>}
                   </div>
               </div>
           </div>
