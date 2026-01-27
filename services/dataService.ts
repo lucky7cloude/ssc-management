@@ -1,3 +1,4 @@
+
 import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, TeacherMeeting, AttendanceStatus, AppNotification } from '../types';
 import { mockDb } from './mockDatabase';
 
@@ -28,9 +29,29 @@ export const saveTeacherInstructions = async (date: string, instructions: string
 export const getEffectiveSchedule = async (dateStr: string, dayName: string) => {
     const base = await getBaseSchedule(dayName);
     const overrides = await getDailyOverrides(dateStr);
+    const attendance = await getAttendanceForDate(dateStr);
+    
     const effective: Record<string, any> = { ...base };
+    
+    // Inject attendance into base entries
+    Object.keys(effective).forEach(key => {
+        const entry = effective[key];
+        if(entry && entry.teacherId) {
+             entry.status = attendance[entry.teacherId] || 'present';
+        }
+    });
+
     Object.keys(overrides).forEach(key => {
-        if (overrides[key]) effective[key] = { ...(base[key] || {}), ...overrides[key], isOverride: true };
+        if (overrides[key]) {
+            const baseEntry = base[key] || {};
+            const override = overrides[key];
+            
+            // Determine active teacher for status check
+            const activeTeacherId = override.subTeacherId || baseEntry.teacherId;
+            const status = activeTeacherId ? (attendance[activeTeacherId] || 'present') : 'present';
+
+            effective[key] = { ...baseEntry, ...override, isOverride: true, status };
+        }
     });
     return effective;
 };
@@ -81,7 +102,6 @@ export const checkTeacherAvailability = async (teacherId: string, dateStr: strin
     return { busy: false };
 };
 
-// Fix: Implement exportData to download local storage as a JSON file
 export const exportData = () => {
     const data = localStorage.getItem('ssc_cloud_v7_local_db_cache');
     if (!data) return;
@@ -94,7 +114,6 @@ export const exportData = () => {
     URL.revokeObjectURL(url);
 };
 
-// Fix: Implement importData to restore app data from a JSON file
 export const importData = async (file: File): Promise<boolean> => {
     try {
         const text = await file.text();
@@ -107,10 +126,8 @@ export const importData = async (file: File): Promise<boolean> => {
     }
 };
 
-// Legacy stubs kept for compatibility
 export const resetData = () => { localStorage.clear(); window.location.reload(); };
 
-// Async implementations for Remarks, Exams, and Meetings
 export const getRemarks = async (): Promise<TeacherRemark[]> => await mockDb.remarks.getAll();
 export const addRemark = async (r: TeacherRemark) => await mockDb.remarks.add(r);
 export const deleteRemark = async (id: string) => await mockDb.remarks.delete(id);
