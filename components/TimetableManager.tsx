@@ -42,7 +42,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const [isMergeMode, setIsMergeMode] = useState(false);
 
   // Substitution Pop-up
-  const [substituteFor, setSubstituteFor] = useState<{ teacherId: string, name: string } | null>(null);
+  const [substituteFor, setSubstituteFor] = useState<{ teacherId: string, name: string, status: AttendanceStatus } | null>(null);
   const [subSearch, setSubSearch] = useState('');
   
   // Daily Note
@@ -115,9 +115,9 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         dataService.markTeacherAttendance(selectedDate, teacherId, status),
     onSuccess: (_, variables) => {
         queryClient.invalidateQueries({ queryKey: ['schedule'] });
-        if (variables.status === 'absent') {
+        if (variables.status !== 'present') {
             const teacher = teachers.find(t => t.id === variables.teacherId);
-            if (teacher) setSubstituteFor({ teacherId: teacher.id, name: teacher.name });
+            if (teacher) setSubstituteFor({ teacherId: teacher.id, name: teacher.name, status: variables.status });
         }
     }
   });
@@ -369,10 +369,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     doc.setTextColor(100);
     doc.text(`Daily Schedule: ${selectedDate} (${selectedDayName})`, 148.5, 22, { align: 'center' });
 
-    const tableHeaders = ["PRD", ...sectionClasses.map((c: ClassSection) => c.name)];
+    const tableHeaders = ["PRD", ...classes.map((c: ClassSection) => c.name)];
     const tableBody = PERIODS.map((p, pIdx) => {
         const row = [p.label];
-        sectionClasses.forEach((c: ClassSection) => {
+        classes.forEach((c: ClassSection) => {
             const entry = scheduleData[`${c.id}_${pIdx}`];
             if (p.label === "LUNCH") row.push("LUNCH");
             else if (!entry) row.push("-");
@@ -817,6 +817,13 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                           {PERIODS.map((period, pIdx) => {
                               if (period.label === 'LUNCH') return null;
                               
+                              // Check if teacher is actually absent in this period based on status
+                              const isAbsentInPeriod = substituteFor.status === 'absent' || 
+                                                       (substituteFor.status === 'half_day_before' && pIdx < 3) || 
+                                                       (substituteFor.status === 'half_day_after' && pIdx > 3);
+                              
+                              if (!isAbsentInPeriod) return null;
+
                               // Find classes where this teacher is assigned in this period
                               const assignedClasses = classes.filter(c => {
                                   const entry = scheduleData[`${c.id}_${pIdx}`];
