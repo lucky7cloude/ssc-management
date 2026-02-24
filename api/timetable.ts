@@ -26,14 +26,15 @@ export default async function handler(req: any, res: any) {
         sql`SELECT text FROM instructions WHERE date_str = ${dateStr}`
       ]);
 
-      const schedule: Record<string, any> = {};
+      const baseSchedule: Record<string, any> = {};
+      const dailyOverrides: Record<string, any> = {};
       const attendance: Record<string, string> = {};
       
       attendanceRows.forEach((r: any) => attendance[r.teacher_id] = r.status);
 
       baseRows.forEach((row: any) => {
         const key = `${row.class_id}_${row.period_index}`;
-        schedule[key] = { 
+        baseSchedule[key] = { 
           teacherId: row.teacher_id, 
           subject: row.subject, 
           note: row.note,
@@ -43,17 +44,18 @@ export default async function handler(req: any, res: any) {
 
       subRows.forEach((row: any) => {
         const key = `${row.class_id}_${row.period_index}`;
-        schedule[key] = { 
+        dailyOverrides[key] = { 
           subTeacherId: row.teacher_id, 
           subSubject: row.subject, 
           subNote: row.note, 
           isOverride: true,
-          status: attendance[row.teacher_id] || 'present'
+          status: row.teacher_id ? (attendance[row.teacher_id] || 'present') : 'present'
         };
       });
 
       return res.status(200).json({
-        schedule,
+        baseSchedule,
+        dailyOverrides,
         attendance,
         instruction: instructionRows[0]?.text || ''
       });
@@ -66,25 +68,18 @@ export default async function handler(req: any, res: any) {
       if (type === 'SAVE_BASE') {
         const { dayName, classId, periodIndex, entry } = payload;
         
-        // Strict Constraint Logic: Update if exists, Insert if new
-        // Constraint assumed: (day_name, class_id, period_index, is_base_schedule)
-        if (!entry) {
-          await sql`
-            DELETE FROM timetable 
-            WHERE day_name = ${dayName} 
-              AND class_id = ${classId} 
-              AND period_index = ${periodIndex} 
-              AND is_base_schedule = true
-          `;
-        } else {
+        await sql`
+          DELETE FROM timetable 
+          WHERE day_name = ${dayName} 
+            AND class_id = ${classId} 
+            AND period_index = ${periodIndex} 
+            AND is_base_schedule = true
+        `;
+
+        if (entry) {
           await sql`
             INSERT INTO timetable (day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, date_str)
             VALUES (${dayName}, ${classId}, ${periodIndex}, ${entry.teacherId || null}, ${entry.subject || null}, ${entry.note || null}, true, 'BASE')
-            ON CONFLICT (day_name, class_id, period_index, is_base_schedule) 
-            DO UPDATE SET 
-              teacher_id = EXCLUDED.teacher_id, 
-              subject = EXCLUDED.subject, 
-              note = EXCLUDED.note
           `;
         }
       } 
@@ -92,46 +87,42 @@ export default async function handler(req: any, res: any) {
       else if (type === 'SAVE_SUBSTITUTION') {
         const { dateStr, dayName, classId, periodIndex, override } = payload;
         
-        // Constraint assumed: (date_str, class_id, period_index, is_base_schedule)
-        if (!override) {
-          await sql`
-            DELETE FROM timetable 
-            WHERE date_str = ${dateStr} 
-              AND class_id = ${classId} 
-              AND period_index = ${periodIndex} 
-              AND is_base_schedule = false
-          `;
-        } else {
+        await sql`
+          DELETE FROM timetable 
+          WHERE date_str = ${dateStr} 
+            AND class_id = ${classId} 
+            AND period_index = ${periodIndex} 
+            AND is_base_schedule = false
+        `;
+
+        if (override) {
           await sql`
             INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule)
             VALUES (${dateStr}, ${dayName}, ${classId}, ${periodIndex}, ${override.subTeacherId || null}, ${override.subSubject || null}, ${override.subNote || null}, false)
-            ON CONFLICT (date_str, class_id, period_index, is_base_schedule) 
-            DO UPDATE SET 
-              teacher_id = EXCLUDED.teacher_id, 
-              subject = EXCLUDED.subject, 
-              note = EXCLUDED.note
           `;
         }
       } 
       
       else if (type === 'SAVE_ATTENDANCE') {
         const { dateStr, teacherId, status } = payload;
-        if (status === 'present') {
-          await sql`DELETE FROM attendance WHERE date_str = ${dateStr} AND teacher_id = ${teacherId}`;
-        } else {
+        await sql`DELETE FROM attendance WHERE date_str = ${dateStr} AND teacher_id = ${teacherId}`;
+        
+        if (status !== 'present') {
           await sql`
             INSERT INTO attendance (date_str, teacher_id, status) VALUES (${dateStr}, ${teacherId}, ${status})
-            ON CONFLICT (date_str, teacher_id) DO UPDATE SET status = EXCLUDED.status
           `;
         }
       } 
       
       else if (type === 'SAVE_INSTRUCTION') {
         const { dateStr, text } = payload;
-        await sql`
-          INSERT INTO instructions (date_str, text) VALUES (${dateStr}, ${text})
-          ON CONFLICT (date_str) DO UPDATE SET text = EXCLUDED.text
-        `;
+        await sql`DELETE FROM instructions WHERE date_str = ${dateStr}`;
+        
+        if (text) {
+          await sql`
+            INSERT INTO instructions (date_str, text) VALUES (${dateStr}, ${text})
+          `;
+        }
       }
 
       return res.status(200).json({ success: true });

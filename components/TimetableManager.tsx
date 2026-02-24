@@ -50,7 +50,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     queryKey: ['static-data'],
     queryFn: async () => {
         // Attempt to fetch from API, fallbacks handled in postgresService
-        const [c, t] = await Promise.all([postgresService.classes.getAll(), dataService.getTeachers()]);
+        const [c, t] = await Promise.all([dataService.getClasses(), dataService.getTeachers()]);
         return { classes: c, teachers: t };
     },
     staleTime: 60000 
@@ -61,13 +61,17 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   const { data: dbData } = useQuery({
     queryKey: ['schedule', selectedDate, selectedDayName],
-    queryFn: () => postgresService.timetable.getEffective(selectedDate, selectedDayName),
+    queryFn: () => dataService.getFullTimetableData(selectedDate, selectedDayName),
     refetchInterval: 5000,
     placeholderData: (prev) => prev,
     retry: false
   });
 
-  const scheduleData = dbData?.schedule || {};
+  const scheduleData = useMemo(() => {
+    if (timetableMode === 'BASE') return dbData?.baseSchedule || {};
+    return dbData?.schedule || {};
+  }, [dbData, timetableMode]);
+
   const attendanceData = dbData?.attendance || {};
   const serverInstruction = dbData?.instruction || '';
 
@@ -81,9 +85,9 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     mutationFn: async (payload: any) => {
         console.log("Saving Slot Payload:", payload); // Debug Log
         if (timetableMode === 'BASE') {
-            return await postgresService.timetable.saveBase(selectedDayName, payload.classId, payload.periodIndex, payload.entry);
+            return await dataService.saveBaseEntry(selectedDayName, payload.classId, payload.periodIndex, payload.entry);
         } else {
-            return await postgresService.timetable.saveSubstitution(selectedDate, selectedDayName, payload.classId, payload.periodIndex, payload.override);
+            return await dataService.saveDailyOverride(selectedDate, selectedDayName, payload.classId, payload.periodIndex, payload.override);
         }
     },
     onSuccess: () => {
@@ -94,13 +98,13 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   });
 
   const instructionMutation = useMutation({
-    mutationFn: (text: string) => postgresService.timetable.saveInstruction(selectedDate, text),
+    mutationFn: (text: string) => dataService.saveTeacherInstructions(selectedDate, text),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedule'] })
   });
 
   // Individual Class Mutations
   const addClassMutation = useMutation({
-    mutationFn: (newClass: ClassSection) => postgresService.classes.save(newClass),
+    mutationFn: (newClass: ClassSection) => dataService.saveClasses([newClass]),
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['static-data'] });
         setNewClassName('');
@@ -109,7 +113,11 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   });
 
   const deleteClassMutation = useMutation({
-    mutationFn: (id: string) => postgresService.classes.delete(id),
+    mutationFn: (id: string) => {
+        // We don't have a deleteClass in dataService, let's just use postgresService directly for now
+        // or add it to dataService.
+        return postgresService.classes.delete(id);
+    },
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['static-data'] });
     }
@@ -137,11 +145,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         Object.entries(scheduleData).forEach(([key, entry]: [string, any]) => {
             const [_, periodStr] = key.split('_');
             if (parseInt(periodStr) === pIdx) {
-                if (entry.isOverride) {
-                    if (entry.subTeacherId) busyIds.add(entry.subTeacherId);
-                } else {
-                    if (entry.teacherId) busyIds.add(entry.teacherId);
-                }
+                const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+                if (activeTeacherId) busyIds.add(activeTeacherId);
             }
         });
 
@@ -165,7 +170,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     const entry = scheduleData[`${classId}_${periodIndex}`];
     
     // Reset form
-    setSelectedTeacherId(entry?.subTeacherId || entry?.teacherId || '');
+    const activeTeacherId = entry ? ('subTeacherId' in entry ? entry.subTeacherId : entry.teacherId) : '';
+    setSelectedTeacherId(activeTeacherId || '');
     setSelectedSubject(entry?.subSubject || entry?.subject || '');
     setPeriodNote(entry?.subNote || entry?.note || '');
     setTeacherSearch('');
@@ -204,7 +210,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             subTeacherId: teacherId || null,
             subSubject: subject || null,
             subNote: note || null,
-            originalTeacherId: scheduleData[`${classId}_${periodIndex}`]?.teacherId || '',
+            originalTeacherId: (dbData?.baseSchedule as any)?.[`${classId}_${periodIndex}`]?.teacherId || '',
             type: type
         };
         saveMutation.mutate({ classId, periodIndex, override: isClear ? null : override });
@@ -241,7 +247,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     
     const entry = scheduleData[`${classId}_${periodIndex}`];
     if (entry) {
-        const t = teachers.find(t => t.id === (entry.subTeacherId || entry.teacherId));
+        const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+        const t = teachers.find(t => t.id === activeTeacherId);
         const isOverride = !!entry.isOverride;
         const isAbsent = entry.status === 'absent' || (entry.status === 'half_day_before' && periodIndex < 3) || (entry.status === 'half_day_after' && periodIndex > 3);
         
@@ -281,7 +288,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             if (p.label === "LUNCH") row.push("LUNCH");
             else if (!entry) row.push("-");
             else {
-                const t = teachers.find(t => t.id === (entry.subTeacherId || entry.teacherId));
+                const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+                const t = teachers.find(t => t.id === activeTeacherId);
                 let text = `${entry.subSubject || entry.subject || ''}\n${t?.name || 'Vacant'}`;
                 if (entry.isOverride) text = `[SUB] ${text}`;
                 row.push(text);

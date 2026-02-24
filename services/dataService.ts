@@ -70,7 +70,7 @@ export const saveClasses = async (classes: ClassSection[]) => {
 export const getBaseSchedule = async (dayName: string): Promise<Record<string, ScheduleEntry>> => {
     try {
         const data = await postgresService.timetable.getEffective('BASE', dayName);
-        return data.schedule;
+        return data.baseSchedule;
     } catch (e) {
         return getCache().baseSchedule?.[dayName] || {};
     }
@@ -89,18 +89,18 @@ export const saveBaseEntry = async (dayName: string, classId: string, periodInde
     }
 };
 
-export const getDailyOverrides = async (dateStr: string): Promise<Record<string, DailyOverride>> => {
+export const getDailyOverrides = async (dateStr: string, dayName: string): Promise<Record<string, DailyOverride>> => {
     try {
-        const data = await postgresService.timetable.getEffective(dateStr, 'Monday');
-        return data.schedule;
+        const data = await postgresService.timetable.getEffective(dateStr, dayName);
+        return data.dailyOverrides;
     } catch (e) {
         return getCache().overrides?.[dateStr] || {};
     }
 };
 
-export const saveDailyOverride = async (dateStr: string, classId: string, periodIndex: number, override: DailyOverride | null) => {
+export const saveDailyOverride = async (dateStr: string, dayName: string, classId: string, periodIndex: number, override: DailyOverride | null) => {
     try {
-        await postgresService.timetable.saveSubstitution(dateStr, 'Monday', classId, periodIndex, override);
+        await postgresService.timetable.saveSubstitution(dateStr, dayName, classId, periodIndex, override);
     } catch (e) {
         const cache = getCache();
         if (!cache.overrides) cache.overrides = {};
@@ -111,9 +111,9 @@ export const saveDailyOverride = async (dateStr: string, classId: string, period
     }
 };
 
-export const getAttendanceForDate = async (dateStr: string): Promise<Record<string, AttendanceStatus>> => {
+export const getAttendanceForDate = async (dateStr: string, dayName: string): Promise<Record<string, AttendanceStatus>> => {
     try {
-        const data = await postgresService.timetable.getEffective(dateStr, 'Monday');
+        const data = await postgresService.timetable.getEffective(dateStr, dayName);
         return data.attendance;
     } catch (e) {
         return getCache().attendance?.[dateStr] || {};
@@ -132,9 +132,9 @@ export const markTeacherAttendance = async (dateStr: string, teacherId: string, 
     }
 };
 
-export const getTeacherInstructions = async (date: string): Promise<string> => {
+export const getTeacherInstructions = async (date: string, dayName: string): Promise<string> => {
     try {
-        const data = await postgresService.timetable.getEffective(date, 'Monday');
+        const data = await postgresService.timetable.getEffective(date, dayName);
         return data.instruction;
     } catch (e) {
         return getCache().instructions?.[date] || '';
@@ -155,12 +155,19 @@ export const saveTeacherInstructions = async (date: string, instructions: string
 export const getEffectiveSchedule = async (dateStr: string, dayName: string): Promise<Record<string, any>> => {
     try {
         const data = await postgresService.timetable.getEffective(dateStr, dayName);
-        return data.schedule;
+        const effective: Record<string, any> = { ...data.baseSchedule };
+        
+        Object.keys(data.dailyOverrides).forEach(key => {
+            const baseEntry = data.baseSchedule[key] || {};
+            effective[key] = { ...baseEntry, ...data.dailyOverrides[key] };
+        });
+        
+        return effective;
     } catch (e) {
         // Local effective logic
         const base = await getBaseSchedule(dayName);
-        const overrides = await getDailyOverrides(dateStr);
-        const attendance = await getAttendanceForDate(dateStr);
+        const overrides = await getDailyOverrides(dateStr, dayName);
+        const attendance = await getAttendanceForDate(dateStr, dayName);
         const effective: Record<string, any> = { ...base };
         
         Object.keys(effective).forEach(key => {
@@ -172,7 +179,7 @@ export const getEffectiveSchedule = async (dateStr: string, dayName: string): Pr
             if (overrides[key]) {
                 const baseEntry = base[key] || {};
                 const override = overrides[key];
-                const activeTeacherId = override.subTeacherId || baseEntry.teacherId;
+                const activeTeacherId = 'subTeacherId' in override ? override.subTeacherId : baseEntry.teacherId;
                 const status = activeTeacherId ? (attendance[activeTeacherId] || 'present') : 'present';
                 effective[key] = { ...baseEntry, ...override, isOverride: true, status };
             }
@@ -181,8 +188,26 @@ export const getEffectiveSchedule = async (dateStr: string, dayName: string): Pr
     }
 };
 
+export const getFullTimetableData = async (dateStr: string, dayName: string) => {
+    try {
+        const data = await postgresService.timetable.getEffective(dateStr, dayName);
+        const schedule = { ...data.baseSchedule };
+        Object.keys(data.dailyOverrides).forEach(key => {
+            const baseEntry = data.baseSchedule[key] || {};
+            schedule[key] = { ...baseEntry, ...data.dailyOverrides[key] };
+        });
+        return { ...data, schedule };
+    } catch (e) {
+        const schedule = await getEffectiveSchedule(dateStr, dayName);
+        const attendance = await getAttendanceForDate(dateStr, dayName);
+        const instruction = await getTeacherInstructions(dateStr, dayName);
+        return { schedule, attendance, instruction, baseSchedule: {}, dailyOverrides: {} };
+    }
+};
+
+
 export const getTeacherDetailedStatus = async (teacherId: string, dateStr: string, dayName: string, periodIndex: number) => {
-    const attendance = await getAttendanceForDate(dateStr);
+    const attendance = await getAttendanceForDate(dateStr, dayName);
     const schedule = await getEffectiveSchedule(dateStr, dayName);
     const status = attendance[teacherId];
     const LUNCH_PERIOD_INDEX = 3;
@@ -195,7 +220,9 @@ export const getTeacherDetailedStatus = async (teacherId: string, dateStr: strin
         const [_, pIdxStr] = key.split('_');
         if (parseInt(pIdxStr) !== periodIndex) return false;
         const entry = schedule[key];
-        return entry && (entry.teacherId === teacherId || entry.subTeacherId === teacherId || entry.splitTeacherId === teacherId);
+        if (!entry) return false;
+        const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+        return activeTeacherId === teacherId || entry.splitTeacherId === teacherId;
     });
 
     if (busySlotKey) {
@@ -218,7 +245,8 @@ export const checkTeacherAvailability = async (teacherId: string, dateStr: strin
             const entry = schedule[key];
             if (!entry) continue;
 
-            if (entry.teacherId === teacherId || entry.subTeacherId === teacherId || entry.splitTeacherId === teacherId) {
+            const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+            if (activeTeacherId === teacherId || entry.splitTeacherId === teacherId) {
                 const cls = classes.find(c => c.id === cId);
                 return { busy: true, className: cls?.name || 'Another Class' };
             }

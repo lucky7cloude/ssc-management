@@ -26,7 +26,7 @@ export const postgresService = {
     }
   },
   timetable: {
-    getEffective: async (dateStr: string, dayName: string): Promise<{ schedule: Record<string, any>, attendance: Record<string, AttendanceStatus>, instruction: string }> => {
+    getEffective: async (dateStr: string, dayName: string): Promise<{ baseSchedule: Record<string, any>, dailyOverrides: Record<string, any>, attendance: Record<string, AttendanceStatus>, instruction: string }> => {
       const res = await fetch(`/api/timetable?dateStr=${dateStr}&dayName=${dayName}`);
       if (!res.ok) throw new Error(`API unavailable (${res.status})`);
       return await res.json();
