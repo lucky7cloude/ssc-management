@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
       const { id, name, initials, color, subject } = req.body;
       await sql`
         INSERT INTO teachers (id, name, initials, color, subject)
-        VALUES (${id}, ${name}, ${initials}, ${color}, ${subject})
+        VALUES (${id}, ${name}, ${initials || null}, ${color || null}, ${subject || null})
         ON CONFLICT (id) DO UPDATE SET 
           name = EXCLUDED.name, 
           initials = EXCLUDED.initials, 

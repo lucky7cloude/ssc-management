@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
       const { id, examType, classId, subject, invigilatorId, date, startTime, endTime } = req.body;
       await sql`
         INSERT INTO exams (id, exam_type, class_id, subject, invigilator_id, date, start_time, end_time)
-        VALUES (${id}, ${examType}, ${classId}, ${subject}, ${invigilatorId}, ${date}, ${startTime}, ${endTime})
+        VALUES (${id}, ${examType || null}, ${classId || null}, ${subject || null}, ${invigilatorId || null}, ${date || null}, ${startTime || null}, ${endTime || null})
         ON CONFLICT (id) DO UPDATE SET 
           exam_type = EXCLUDED.exam_type, 
           class_id = EXCLUDED.class_id, 

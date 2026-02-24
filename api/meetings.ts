@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
       const { id, name, date, note, type } = req.body;
       await sql`
         INSERT INTO meetings (id, name, date, note, type)
-        VALUES (${id}, ${name}, ${date}, ${note}, ${type})
+        VALUES (${id}, ${name || null}, ${date || null}, ${note || null}, ${type || null})
         ON CONFLICT (id) DO UPDATE SET 
           name = EXCLUDED.name, 
           date = EXCLUDED.date, 

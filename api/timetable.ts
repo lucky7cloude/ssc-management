@@ -44,7 +44,6 @@ export default async function handler(req: any, res: any) {
       subRows.forEach((row: any) => {
         const key = `${row.class_id}_${row.period_index}`;
         schedule[key] = { 
-          ...schedule[key],
           subTeacherId: row.teacher_id, 
           subSubject: row.subject, 
           subNote: row.note, 
@@ -80,7 +79,7 @@ export default async function handler(req: any, res: any) {
         } else {
           await sql`
             INSERT INTO timetable (day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, date_str)
-            VALUES (${dayName}, ${classId}, ${periodIndex}, ${entry.teacherId}, ${entry.subject}, ${entry.note}, true, 'BASE')
+            VALUES (${dayName}, ${classId}, ${periodIndex}, ${entry.teacherId || null}, ${entry.subject || null}, ${entry.note || null}, true, 'BASE')
             ON CONFLICT (day_name, class_id, period_index, is_base_schedule) 
             DO UPDATE SET 
               teacher_id = EXCLUDED.teacher_id, 
@@ -105,7 +104,7 @@ export default async function handler(req: any, res: any) {
         } else {
           await sql`
             INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule)
-            VALUES (${dateStr}, ${dayName}, ${classId}, ${periodIndex}, ${override.subTeacherId}, ${override.subSubject}, ${override.subNote}, false)
+            VALUES (${dateStr}, ${dayName}, ${classId}, ${periodIndex}, ${override.subTeacherId || null}, ${override.subSubject || null}, ${override.subNote || null}, false)
             ON CONFLICT (date_str, class_id, period_index, is_base_schedule) 
             DO UPDATE SET 
               teacher_id = EXCLUDED.teacher_id, 
