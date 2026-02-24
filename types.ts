@@ -21,17 +21,17 @@ export interface ClassSection {
 }
 
 export interface ScheduleEntry {
-  teacherId?: string;
-  subject?: string;
-  note?: string;
+  teacherId?: string | null;
+  subject?: string | null;
+  note?: string | null;
   isOverride?: boolean;
   status?: AttendanceStatus;
 }
 
 export interface DailyOverride {
-  subTeacherId?: string;
-  subSubject?: string;
-  subNote?: string;
+  subTeacherId?: string | null;
+  subSubject?: string | null;
+  subNote?: string | null;
   originalTeacherId: string;
   type: 'SUBSTITUTION' | 'VACANT';
 }

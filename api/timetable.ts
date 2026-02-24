@@ -44,6 +44,7 @@ export default async function handler(req: any, res: any) {
       subRows.forEach((row: any) => {
         const key = `${row.class_id}_${row.period_index}`;
         schedule[key] = { 
+          ...schedule[key],
           subTeacherId: row.teacher_id, 
           subSubject: row.subject, 
           subNote: row.note, 

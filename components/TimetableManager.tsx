@@ -137,8 +137,11 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         Object.entries(scheduleData).forEach(([key, entry]: [string, any]) => {
             const [_, periodStr] = key.split('_');
             if (parseInt(periodStr) === pIdx) {
-                if (entry.subTeacherId) busyIds.add(entry.subTeacherId);
-                else if (entry.teacherId) busyIds.add(entry.teacherId);
+                if (entry.isOverride) {
+                    if (entry.subTeacherId) busyIds.add(entry.subTeacherId);
+                } else {
+                    if (entry.teacherId) busyIds.add(entry.teacherId);
+                }
             }
         });
 
@@ -190,17 +193,17 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     
     if (timetableMode === 'BASE') {
         const entry: ScheduleEntry = {
-            teacherId: teacherId || undefined,
-            subject: subject || undefined,
-            note: note || undefined
+            teacherId: teacherId || null,
+            subject: subject || null,
+            note: note || null
         };
         saveMutation.mutate({ classId, periodIndex, entry: isClear ? null : entry });
     } else {
         // Daily Mode
         const override: DailyOverride = {
-            subTeacherId: teacherId || undefined,
-            subSubject: subject || undefined,
-            subNote: note || undefined,
+            subTeacherId: teacherId || null,
+            subSubject: subject || null,
+            subNote: note || null,
             originalTeacherId: scheduleData[`${classId}_${periodIndex}`]?.teacherId || '',
             type: type
         };
