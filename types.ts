@@ -26,6 +26,12 @@ export interface ScheduleEntry {
   note?: string | null;
   isOverride?: boolean;
   status?: AttendanceStatus;
+  // Split Period Support
+  splitTeacherId?: string | null;
+  splitSubject?: string | null;
+  splitNote?: string | null;
+  // Merged Class Support
+  mergedClassIds?: string[] | null;
 }
 
 export interface DailyOverride {
@@ -34,6 +40,12 @@ export interface DailyOverride {
   subNote?: string | null;
   originalTeacherId: string;
   type: 'SUBSTITUTION' | 'VACANT';
+  // Split Period Support
+  splitTeacherId?: string | null;
+  splitSubject?: string | null;
+  splitNote?: string | null;
+  // Merged Class Support
+  mergedClassIds?: string[] | null;
 }
 
 export interface DailyInstruction {

@@ -24,6 +24,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClassManagerOpen, setIsClassManagerOpen] = useState(false);
+  const [isAttendanceManagerOpen, setIsAttendanceManagerOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{classId: string, periodIndex: number} | null>(null);
   
   // Assignment Form
@@ -31,6 +32,18 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const [teacherSearch, setTeacherSearch] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [periodNote, setPeriodNote] = useState('');
+
+  // Split & Merge States
+  const [splitTeacherId, setSplitTeacherId] = useState('');
+  const [splitSubject, setSplitSubject] = useState('');
+  const [splitNote, setSplitNote] = useState('');
+  const [mergedClassIds, setMergedClassIds] = useState<string[]>([]);
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [isMergeMode, setIsMergeMode] = useState(false);
+
+  // Substitution Pop-up
+  const [substituteFor, setSubstituteFor] = useState<{ teacherId: string, name: string } | null>(null);
+  const [subSearch, setSubSearch] = useState('');
   
   // Daily Note
   const [dailyNote, setDailyNote] = useState('');
@@ -97,6 +110,18 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     }
   });
 
+  const attendanceMutation = useMutation({
+    mutationFn: ({ teacherId, status }: { teacherId: string, status: AttendanceStatus }) => 
+        dataService.markTeacherAttendance(selectedDate, teacherId, status),
+    onSuccess: (_, variables) => {
+        queryClient.invalidateQueries({ queryKey: ['schedule'] });
+        if (variables.status === 'absent') {
+            const teacher = teachers.find(t => t.id === variables.teacherId);
+            if (teacher) setSubstituteFor({ teacherId: teacher.id, name: teacher.name });
+        }
+    }
+  });
+
   const instructionMutation = useMutation({
     mutationFn: (text: string) => dataService.saveTeacherInstructions(selectedDate, text),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedule'] })
@@ -147,6 +172,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             if (parseInt(periodStr) === pIdx) {
                 const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
                 if (activeTeacherId) busyIds.add(activeTeacherId);
+                if (entry.splitTeacherId) busyIds.add(entry.splitTeacherId);
             }
         });
 
@@ -174,12 +200,25 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     setSelectedTeacherId(activeTeacherId || '');
     setSelectedSubject(entry?.subSubject || entry?.subject || '');
     setPeriodNote(entry?.subNote || entry?.note || '');
+    
+    setSplitTeacherId(entry?.splitTeacherId || '');
+    setSplitSubject(entry?.splitSubject || '');
+    setSplitNote(entry?.splitNote || '');
+    setMergedClassIds(entry?.mergedClassIds || []);
+    setIsSplitMode(!!entry?.splitTeacherId);
+    setIsMergeMode(!!entry?.mergedClassIds?.length);
+
     setTeacherSearch('');
     
     setIsModalOpen(true);
   };
 
-  const handleTeacherSelect = (teacher: Teacher) => {
+  const handleTeacherSelect = (teacher: any) => {
+    if (teacher.isBusy) {
+        if (!window.confirm(`${teacher.name} is already busy in ${teacher.busyInClass}. Are you sure you want to assign them here too?`)) {
+            return;
+        }
+    }
     setSelectedTeacherId(teacher.id);
     // Auto-fill subject if available and current subject is empty
     if (teacher.subject && !selectedSubject) {
@@ -201,9 +240,20 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         const entry: ScheduleEntry = {
             teacherId: teacherId || null,
             subject: subject || null,
-            note: note || null
+            note: note || null,
+            splitTeacherId: isSplitMode ? splitTeacherId || null : null,
+            splitSubject: isSplitMode ? splitSubject || null : null,
+            splitNote: isSplitMode ? splitNote || null : null,
+            mergedClassIds: isMergeMode ? mergedClassIds : null
         };
         saveMutation.mutate({ classId, periodIndex, entry: isClear ? null : entry });
+        
+        // Also save to merged classes
+        if (isMergeMode && mergedClassIds.length > 0) {
+            mergedClassIds.forEach(mId => {
+                saveMutation.mutate({ classId: mId, periodIndex, entry: isClear ? null : { ...entry, mergedClassIds: [classId, ...mergedClassIds.filter(id => id !== mId)] } });
+            });
+        }
     } else {
         // Daily Mode
         const override: DailyOverride = {
@@ -211,9 +261,29 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             subSubject: subject || null,
             subNote: note || null,
             originalTeacherId: (dbData?.baseSchedule as any)?.[`${classId}_${periodIndex}`]?.teacherId || '',
-            type: type
+            type: type,
+            splitTeacherId: isSplitMode ? splitTeacherId || null : null,
+            splitSubject: isSplitMode ? splitSubject || null : null,
+            splitNote: isSplitMode ? splitNote || null : null,
+            mergedClassIds: isMergeMode ? mergedClassIds : null
         };
         saveMutation.mutate({ classId, periodIndex, override: isClear ? null : override });
+
+        // Also save to merged classes
+        if (isMergeMode && mergedClassIds.length > 0) {
+            mergedClassIds.forEach(mId => {
+                const mOriginalTeacherId = (dbData?.baseSchedule as any)?.[`${mId}_${periodIndex}`]?.teacherId || '';
+                saveMutation.mutate({ 
+                    classId: mId, 
+                    periodIndex, 
+                    override: isClear ? null : { 
+                        ...override, 
+                        originalTeacherId: mOriginalTeacherId,
+                        mergedClassIds: [classId, ...mergedClassIds.filter(id => id !== mId)] 
+                    } 
+                });
+            });
+        }
     }
   };
 
@@ -259,12 +329,31 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             borderColor = '#ef4444';
         }
 
+        const splitT = entry.splitTeacherId ? teachers.find(t => t.id === entry.splitTeacherId) : null;
+        const mergedClasses = entry.mergedClassIds?.length ? classes.filter(c => entry.mergedClassIds.includes(c.id)) : [];
+
         return (
             <div onClick={() => handleCellClick(classId, periodIndex)} className={`h-full w-full p-2 border-l-4 rounded-xl cursor-pointer shadow-sm relative flex flex-col justify-center transition-all ${bgColor} border-slate-100 dark:border-slate-800`} style={{ borderLeftColor: borderColor }}>
-                <div className="font-black text-[10px] truncate leading-tight mb-0.5 dark:text-slate-200">{entry.subSubject || entry.subject}</div>
-                <div className="text-[9px] truncate font-bold text-slate-500">{t?.name || (isAbsent ? 'Absent' : 'Vacant')}</div>
-                {isOverride && <div className="absolute top-1 right-1 px-1 bg-amber-500 text-white rounded text-[7px] font-black">SUB</div>}
-                {isAbsent && !isOverride && <div className="absolute top-1 right-1 px-1 bg-red-500 text-white rounded text-[7px] font-black">LEAVE</div>}
+                <div className="flex flex-col gap-0.5">
+                    <div className="font-black text-[10px] truncate leading-tight dark:text-slate-200">{entry.subSubject || entry.subject}</div>
+                    <div className="text-[9px] truncate font-bold text-slate-500">{t?.name || (isAbsent ? 'Absent' : 'Vacant')}</div>
+                    
+                    {splitT && (
+                        <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-0.5">
+                            <div className="font-black text-[9px] truncate text-brand-600 leading-tight">{entry.splitSubject}</div>
+                            <div className="text-[8px] font-bold text-slate-400 truncate">{splitT.name}</div>
+                        </div>
+                    )}
+
+                    {mergedClasses.length > 0 && (
+                        <div className="absolute top-1 right-1 flex gap-0.5">
+                            <div className="px-1 bg-purple-100 dark:bg-purple-900/30 text-purple-600 text-[7px] font-black rounded uppercase">Merged</div>
+                        </div>
+                    )}
+                </div>
+
+                {isOverride && <div className="absolute bottom-1 right-1 px-1 bg-amber-500 text-white rounded text-[7px] font-black">SUB</div>}
+                {isAbsent && !isOverride && <div className="absolute bottom-1 right-1 px-1 bg-red-500 text-white rounded text-[7px] font-black">LEAVE</div>}
             </div>
         );
     }
@@ -314,7 +403,36 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     doc.save(`SilverStar_Schedule_${selectedDate}.pdf`);
   };
 
-  const filteredTeacherList = teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()));
+  const filteredTeacherList = useMemo(() => {
+    if (!editingSlot) return [];
+    const { periodIndex, classId } = editingSlot;
+    
+    // Find who is busy in this period
+    const busyMap = new Map<string, string>(); // teacherId -> className
+    Object.entries(scheduleData).forEach(([key, entry]: [string, any]) => {
+        const [cId, pIdx] = key.split('_');
+        if (parseInt(pIdx) === periodIndex && cId !== classId) {
+            const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+            const splitTeacherId = entry.splitTeacherId;
+            const cls = classes.find(c => c.id === cId);
+            
+            if (activeTeacherId) {
+                busyMap.set(activeTeacherId, cls?.name || 'Another Class');
+            }
+            if (splitTeacherId) {
+                busyMap.set(splitTeacherId, cls?.name || 'Another Class');
+            }
+        }
+    });
+
+    return teachers
+        .filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()))
+        .map(t => ({
+            ...t,
+            isBusy: busyMap.has(t.id),
+            busyInClass: busyMap.get(t.id)
+        }));
+  }, [teachers, teacherSearch, editingSlot, scheduleData, classes]);
 
   return (
     <div className="space-y-6 relative pb-20">
@@ -350,9 +468,14 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
         <div className="flex flex-wrap items-center gap-3">
             {(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') && (
-              <button onClick={() => setIsClassManagerOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border dark:border-slate-700">
-                <Settings className="w-4 h-4" /> Manage Classes
-              </button>
+              <>
+                <button onClick={() => setIsAttendanceManagerOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-brand-100 transition-all border border-brand-100 dark:border-brand-900/30">
+                  <UserCheck className="w-4 h-4" /> Attendance
+                </button>
+                <button onClick={() => setIsClassManagerOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border dark:border-slate-700">
+                  <Settings className="w-4 h-4" /> Manage Classes
+                </button>
+              </>
             )}
             <button onClick={downloadPDF} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-black text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-brand-600 transition-all shadow-lg"><Download className="w-4 h-4" /> PDF</button>
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border dark:border-slate-700">
@@ -481,32 +604,56 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                              </button>
 
                             {filteredTeacherList.map(t => {
-                                const isAbsent = attendanceData[t.id] === 'absent';
+                                const status = attendanceData[t.id] || 'present';
+                                const isAbsent = status === 'absent';
                                 const isSelected = selectedTeacherId === t.id;
-                                const isHalfDay = attendanceData[t.id] === 'half_day_before' || attendanceData[t.id] === 'half_day_after';
+                                const isHalfDay = status === 'half_day_before' || status === 'half_day_after';
                                 
                                 return (
-                                    <button 
-                                        key={t.id}
-                                        onClick={() => handleTeacherSelect(t)}
-                                        className={`p-2 rounded-xl border text-left flex items-center gap-3 transition-all group ${isSelected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-600' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'} ${isAbsent ? 'opacity-60 bg-red-50/50 dark:bg-red-900/10' : ''}`}
-                                    >
-                                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] text-white font-bold shrink-0 shadow-sm" style={{backgroundColor: t.color}}>{t.initials}</div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`text-xs font-bold truncate ${isSelected ? 'text-brand-700 dark:text-brand-300' : 'text-slate-700 dark:text-slate-300'}`}>{t.name}</p>
-                                            <div className="flex items-center gap-2">
-                                                {isAbsent ? (
-                                                    <span className="text-[9px] font-black text-red-500 uppercase tracking-wider bg-red-100 dark:bg-red-900/30 px-1.5 rounded">Absent</span>
-                                                ) : isHalfDay ? (
-                                                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider bg-amber-100 dark:bg-amber-900/30 px-1.5 rounded">Half Day</span>
-                                                ) : (
-                                                    <span className="text-[9px] font-bold text-slate-400">Available</span>
-                                                )}
-                                                {t.subject && <span className="text-[9px] text-slate-400 border-l pl-2 dark:border-slate-700">{t.subject}</span>}
+                                    <div key={t.id} className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => handleTeacherSelect(t)}
+                                                className={`flex-1 p-2 rounded-xl border text-left flex items-center gap-3 transition-all group ${isSelected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-600' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'} ${isAbsent ? 'opacity-60 bg-red-50/50 dark:bg-red-900/10' : ''} ${t.isBusy ? 'border-amber-200 bg-amber-50/30' : ''}`}
+                                            >
+                                                <div className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] text-white font-bold shrink-0 shadow-sm" style={{backgroundColor: t.color}}>{t.initials}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-xs font-bold truncate ${isSelected ? 'text-brand-700 dark:text-brand-300' : 'text-slate-700 dark:text-slate-300'}`}>{t.name}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        {isAbsent ? (
+                                                            <span className="text-[9px] font-black text-red-500 uppercase tracking-wider bg-red-100 dark:bg-red-900/30 px-1.5 rounded">Absent</span>
+                                                        ) : isHalfDay ? (
+                                                            <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider bg-amber-100 dark:bg-amber-900/30 px-1.5 rounded">Half Day</span>
+                                                        ) : t.isBusy ? (
+                                                            <span className="text-[9px] font-black text-amber-600 uppercase tracking-wider bg-amber-100 px-1.5 rounded">Busy in {t.busyInClass}</span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-bold text-slate-400">Available</span>
+                                                        )}
+                                                        {t.subject && <span className="text-[9px] text-slate-400 border-l pl-2 dark:border-slate-700">{t.subject}</span>}
+                                                    </div>
+                                                </div>
+                                                {isSelected && <Check className="w-5 h-5 text-brand-600" />}
+                                            </button>
+
+                                            {/* Attendance Toggle */}
+                                            <div className="flex flex-col gap-1 shrink-0">
+                                                <select 
+                                                    value={status}
+                                                    onChange={(e) => attendanceMutation.mutate({ teacherId: t.id, status: e.target.value as AttendanceStatus })}
+                                                    className={`text-[10px] font-bold p-1 rounded border appearance-none text-center min-w-[70px] cursor-pointer transition-colors ${
+                                                        status === 'present' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
+                                                        status === 'absent' ? 'bg-red-50 text-red-600 border-red-200' : 
+                                                        'bg-amber-50 text-amber-600 border-amber-200'
+                                                    }`}
+                                                >
+                                                    <option value="present">Present</option>
+                                                    <option value="absent">Absent</option>
+                                                    <option value="half_day_before">Half (B)</option>
+                                                    <option value="half_day_after">Half (A)</option>
+                                                </select>
                                             </div>
                                         </div>
-                                        {isSelected && <Check className="w-5 h-5 text-brand-600" />}
-                                    </button>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -536,6 +683,90 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                                 />
                             </div>
                          </div>
+
+                         {/* Split & Merge Controls */}
+                         <div className="space-y-3 pt-2 border-t dark:border-slate-800">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-brand-600" />
+                                    <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Split Period</span>
+                                </div>
+                                <button 
+                                    onClick={() => setIsSplitMode(!isSplitMode)}
+                                    className={`w-10 h-5 rounded-full transition-all relative ${isSplitMode ? 'bg-brand-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+                                >
+                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isSplitMode ? 'left-6' : 'left-1'}`} />
+                                </button>
+                            </div>
+
+                            {isSplitMode && (
+                                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-brand-100 dark:border-brand-900/30 space-y-3 animate-in slide-in-from-top-2">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] font-bold text-slate-400 uppercase">Second Teacher</label>
+                                        <select 
+                                            value={splitTeacherId}
+                                            onChange={(e) => setSplitTeacherId(e.target.value)}
+                                            className="w-full text-xs h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg px-2"
+                                        >
+                                            <option value="">Select Teacher</option>
+                                            {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Subject" 
+                                            value={splitSubject} 
+                                            onChange={e => setSplitSubject(e.target.value)}
+                                            className="text-xs h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg px-2"
+                                        />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Note" 
+                                            value={splitNote} 
+                                            onChange={e => setSplitNote(e.target.value)}
+                                            className="text-xs h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg px-2"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Plus className="w-4 h-4 text-purple-600" />
+                                    <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Merge Classes</span>
+                                </div>
+                                <button 
+                                    onClick={() => setIsMergeMode(!isMergeMode)}
+                                    className={`w-10 h-5 rounded-full transition-all relative ${isMergeMode ? 'bg-purple-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+                                >
+                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isMergeMode ? 'left-6' : 'left-1'}`} />
+                                </button>
+                            </div>
+
+                            {isMergeMode && (
+                                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-2 animate-in slide-in-from-top-2">
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Select classes to merge with</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {classes.filter(c => c.id !== editingSlot?.classId).map(c => (
+                                            <button 
+                                                key={c.id}
+                                                onClick={() => {
+                                                    if (mergedClassIds.includes(c.id)) {
+                                                        setMergedClassIds(mergedClassIds.filter(id => id !== c.id));
+                                                    } else {
+                                                        setMergedClassIds([...mergedClassIds, c.id]);
+                                                    }
+                                                }}
+                                                className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${mergedClassIds.includes(c.id) ? 'bg-purple-600 border-purple-600 text-white' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                                            >
+                                                {c.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                         </div>
                          
                          <div className="flex gap-3 pt-2">
                              <button 
@@ -555,6 +786,186 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                               </button>
                          </div>
                       </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Substitution Pop-up Modal */}
+      {substituteFor && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-xl max-h-[80vh] overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800 animate-pop-in">
+                  <div className="p-6 border-b dark:border-slate-800 flex items-center justify-between bg-red-50/50 dark:bg-red-950/20">
+                      <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600">
+                              <UserX className="w-6 h-6" />
+                          </div>
+                          <div>
+                              <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Substitution Required</h3>
+                              <p className="text-xs text-red-500 font-black uppercase tracking-widest mt-0.5">{substituteFor.name} is Absent</p>
+                          </div>
+                      </div>
+                      <button onClick={() => setSubstituteFor(null)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400"><X className="w-6 h-6" /></button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                      <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                          {substituteFor.name} is marked as absent. Below are the periods where they were assigned. Please select a substitute teacher for each period or mark it as vacant.
+                      </p>
+
+                      <div className="space-y-4">
+                          {PERIODS.map((period, pIdx) => {
+                              if (period.label === 'LUNCH') return null;
+                              
+                              // Find classes where this teacher is assigned in this period
+                              const assignedClasses = classes.filter(c => {
+                                  const entry = scheduleData[`${c.id}_${pIdx}`];
+                                  const activeTeacherId = entry ? ('subTeacherId' in entry ? entry.subTeacherId : entry.teacherId) : '';
+                                  return activeTeacherId === substituteFor.teacherId;
+                              });
+
+                              if (assignedClasses.length === 0) return null;
+
+                              return (
+                                  <div key={pIdx} className="p-5 rounded-[2rem] border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-4">
+                                      <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-3">
+                                              <div className="px-3 py-1 bg-brand-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest">Period {period.label}</div>
+                                              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{period.start} - {period.end}</span>
+                                          </div>
+                                      </div>
+
+                                      <div className="space-y-3">
+                                          {assignedClasses.map(cls => (
+                                              <div key={cls.id} className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                                  <div className="flex items-center justify-between">
+                                                      <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">Class {cls.name}</span>
+                                                      <span className="text-[10px] font-bold text-slate-400 italic">Original: {substituteFor.name}</span>
+                                                  </div>
+
+                                                  <div className="grid grid-cols-1 gap-3">
+                                                      <div className="space-y-2">
+                                                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign Substitute</label>
+                                                          <div className="flex gap-2">
+                                                              <select 
+                                                                  className="flex-1 text-xs h-10 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
+                                                                  onChange={(e) => {
+                                                                      const subId = e.target.value;
+                                                                      if (subId === 'VACANT') {
+                                                                          dataService.saveDailyOverride(selectedDate, selectedDayName, cls.id, pIdx, {
+                                                                              subTeacherId: null,
+                                                                              subSubject: 'Free Period',
+                                                                              subNote: 'Teacher Absent',
+                                                                              originalTeacherId: substituteFor.teacherId,
+                                                                              type: 'VACANT'
+                                                                          }).then(() => queryClient.invalidateQueries({ queryKey: ['schedule'] }));
+                                                                      } else if (subId) {
+                                                                          const subTeacher = teachers.find(t => t.id === subId);
+                                                                          dataService.saveDailyOverride(selectedDate, selectedDayName, cls.id, pIdx, {
+                                                                              subTeacherId: subId,
+                                                                              subSubject: subTeacher?.subject || 'Substitution',
+                                                                              subNote: 'Substitute Assigned',
+                                                                              originalTeacherId: substituteFor.teacherId,
+                                                                              type: 'SUBSTITUTION'
+                                                                          }).then(() => queryClient.invalidateQueries({ queryKey: ['schedule'] }));
+                                                                      }
+                                                                  }}
+                                                              >
+                                                                  <option value="">Select Action...</option>
+                                                                  <option value="VACANT">Mark as Free Period</option>
+                                                                  <optgroup label="Available Teachers">
+                                                                      {teachers.filter(t => {
+                                                                          // Check if teacher is free in this period
+                                                                          const isBusy = Object.entries(scheduleData).some(([key, entry]: [string, any]) => {
+                                                                              const [_, periodStr] = key.split('_');
+                                                                              if (parseInt(periodStr) !== pIdx) return false;
+                                                                              const activeId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
+                                                                              return activeId === t.id;
+                                                                          });
+                                                                          const isAbsent = attendanceData[t.id] === 'absent';
+                                                                          return !isBusy && !isAbsent && t.id !== substituteFor.teacherId;
+                                                                      }).map(t => (
+                                                                          <option key={t.id} value={t.id}>{t.name} ({t.subject || 'N/A'})</option>
+                                                                      ))}
+                                                                  </optgroup>
+                                                              </select>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  </div>
+
+                  <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t dark:border-slate-800 flex justify-end">
+                      <button 
+                        onClick={() => setSubstituteFor(null)}
+                        className="px-10 py-3.5 bg-slate-900 dark:bg-black text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-600 shadow-xl transition-all active:scale-95"
+                      >
+                        Finish Substitution
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Attendance Manager Modal */}
+      {isAttendanceManagerOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800">
+                  <div className="p-6 border-b dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
+                      <div>
+                          <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Teacher Attendance</h3>
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">{selectedDate} ({selectedDayName})</p>
+                      </div>
+                      <button onClick={() => setIsAttendanceManagerOpen(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-slate-600"><X className="w-6 h-6" /></button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {teachers.map(t => {
+                              const status = attendanceData[t.id] || 'present';
+                              return (
+                                  <div key={t.id} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/30 flex items-center justify-between gap-4">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs text-white font-bold shrink-0 shadow-sm" style={{backgroundColor: t.color}}>{t.initials}</div>
+                                          <div className="min-w-0">
+                                              <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{t.name}</p>
+                                              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{t.subject || 'No Subject'}</p>
+                                          </div>
+                                      </div>
+                                      
+                                      <select 
+                                          value={status}
+                                          onChange={(e) => attendanceMutation.mutate({ teacherId: t.id, status: e.target.value as AttendanceStatus })}
+                                          className={`text-xs font-black p-2 rounded-xl border appearance-none text-center min-w-[100px] cursor-pointer transition-all ${
+                                              status === 'present' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 
+                                              status === 'absent' ? 'bg-red-50 text-red-600 border-red-200' : 
+                                              'bg-amber-50 text-amber-600 border-amber-200'
+                                          }`}
+                                      >
+                                          <option value="present">Present</option>
+                                          <option value="absent">Absent</option>
+                                          <option value="half_day_before">Half Day (B)</option>
+                                          <option value="half_day_after">Half Day (A)</option>
+                                      </select>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  </div>
+                  
+                  <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t dark:border-slate-800 flex justify-end">
+                      <button 
+                        onClick={() => setIsAttendanceManagerOpen(false)}
+                        className="px-8 py-3 bg-brand-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-700 shadow-xl transition-all active:scale-95"
+                      >
+                        Done
+                      </button>
                   </div>
               </div>
           </div>

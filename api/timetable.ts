@@ -11,6 +11,16 @@ export default async function handler(req: any, res: any) {
 
   const sql = neon(databaseUrl);
 
+  // Ensure columns exist (Migration)
+  try {
+    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS split_teacher_id TEXT`;
+    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS split_subject TEXT`;
+    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS split_note TEXT`;
+    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS merged_class_ids TEXT`;
+  } catch (e) {
+    console.error("Migration error:", e);
+  }
+
   try {
     const { method } = req;
 
@@ -20,8 +30,8 @@ export default async function handler(req: any, res: any) {
 
       // Fetch data
       const [baseRows, subRows, attendanceRows, instructionRows] = await Promise.all([
-        sql`SELECT class_id, period_index, teacher_id, subject, note FROM timetable WHERE day_name = ${dayName} AND is_base_schedule = true`,
-        sql`SELECT class_id, period_index, teacher_id, subject, note FROM timetable WHERE date_str = ${dateStr} AND is_base_schedule = false`,
+        sql`SELECT class_id, period_index, teacher_id, subject, note, split_teacher_id, split_subject, split_note, merged_class_ids FROM timetable WHERE day_name = ${dayName} AND is_base_schedule = true`,
+        sql`SELECT class_id, period_index, teacher_id, subject, note, split_teacher_id, split_subject, split_note, merged_class_ids FROM timetable WHERE date_str = ${dateStr} AND is_base_schedule = false`,
         sql`SELECT teacher_id, status FROM attendance WHERE date_str = ${dateStr}`,
         sql`SELECT text FROM instructions WHERE date_str = ${dateStr}`
       ]);
@@ -38,6 +48,10 @@ export default async function handler(req: any, res: any) {
           teacherId: row.teacher_id, 
           subject: row.subject, 
           note: row.note,
+          splitTeacherId: row.split_teacher_id,
+          splitSubject: row.split_subject,
+          splitNote: row.split_note,
+          mergedClassIds: row.merged_class_ids ? JSON.parse(row.merged_class_ids) : null,
           status: attendance[row.teacher_id] || 'present' 
         };
       });
@@ -48,6 +62,10 @@ export default async function handler(req: any, res: any) {
           subTeacherId: row.teacher_id, 
           subSubject: row.subject, 
           subNote: row.note, 
+          splitTeacherId: row.split_teacher_id,
+          splitSubject: row.split_subject,
+          splitNote: row.split_note,
+          mergedClassIds: row.merged_class_ids ? JSON.parse(row.merged_class_ids) : null,
           isOverride: true,
           status: row.teacher_id ? (attendance[row.teacher_id] || 'present') : 'present'
         };
@@ -78,8 +96,21 @@ export default async function handler(req: any, res: any) {
 
         if (entry) {
           await sql`
-            INSERT INTO timetable (day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, date_str)
-            VALUES (${dayName}, ${classId}, ${periodIndex}, ${entry.teacherId || null}, ${entry.subject || null}, ${entry.note || null}, true, 'BASE')
+            INSERT INTO timetable (day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, date_str, split_teacher_id, split_subject, split_note, merged_class_ids)
+            VALUES (
+              ${dayName}, 
+              ${classId}, 
+              ${periodIndex}, 
+              ${entry.teacherId || null}, 
+              ${entry.subject || null}, 
+              ${entry.note || null}, 
+              true, 
+              'BASE',
+              ${entry.splitTeacherId || null},
+              ${entry.splitSubject || null},
+              ${entry.splitNote || null},
+              ${entry.mergedClassIds ? JSON.stringify(entry.mergedClassIds) : null}
+            )
           `;
         }
       } 
@@ -97,8 +128,21 @@ export default async function handler(req: any, res: any) {
 
         if (override) {
           await sql`
-            INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule)
-            VALUES (${dateStr}, ${dayName}, ${classId}, ${periodIndex}, ${override.subTeacherId || null}, ${override.subSubject || null}, ${override.subNote || null}, false)
+            INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, split_teacher_id, split_subject, split_note, merged_class_ids)
+            VALUES (
+              ${dateStr}, 
+              ${dayName}, 
+              ${classId}, 
+              ${periodIndex}, 
+              ${override.subTeacherId || null}, 
+              ${override.subSubject || null}, 
+              ${override.subNote || null}, 
+              false,
+              ${override.splitTeacherId || null},
+              ${override.splitSubject || null},
+              ${override.splitNote || null},
+              ${override.mergedClassIds ? JSON.stringify(override.mergedClassIds) : null}
+            )
           `;
         }
       } 
