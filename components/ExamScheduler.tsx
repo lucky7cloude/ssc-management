@@ -312,10 +312,10 @@ export const ExamScheduler: React.FC = () => {
                 styles: { fontSize: 9, cellPadding: 2.5, textColor: 50 },
                 headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8.5, fontStyle: 'bold' },
                 columnStyles: {
-                    0: { fontStyle: 'bold', width: 28 },
-                    1: { width: 55 },
-                    2: { width: 45 },
-                    3: { width: 54 }
+                    0: { fontStyle: 'bold', cellWidth: 28 },
+                    1: { cellWidth: 55 },
+                    2: { cellWidth: 45 },
+                    3: { cellWidth: 54 }
                 },
                 margin: { left: 14, right: 14 },
                 didDrawPage: (data) => {

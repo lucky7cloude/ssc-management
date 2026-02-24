@@ -125,7 +125,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   };
 
   const sectionClasses = useMemo(() => {
-    return classes.filter(c => c.section === activeSection);
+    return classes.filter((c: ClassSection) => c.section === activeSection);
   }, [classes, activeSection]);
 
   const freeTeachersPerPeriod = useMemo(() => {
@@ -270,10 +270,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     doc.setTextColor(100);
     doc.text(`Daily Schedule: ${selectedDate} (${selectedDayName})`, 148.5, 22, { align: 'center' });
 
-    const tableHeaders = ["PRD", ...sectionClasses.map(c => c.name)];
+    const tableHeaders = ["PRD", ...sectionClasses.map((c: ClassSection) => c.name)];
     const tableBody = PERIODS.map((p, pIdx) => {
         const row = [p.label];
-        sectionClasses.forEach(c => {
+        sectionClasses.forEach((c: ClassSection) => {
             const entry = scheduleData[`${c.id}_${pIdx}`];
             if (p.label === "LUNCH") row.push("LUNCH");
             else if (!entry) row.push("-");
@@ -354,7 +354,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-sm border border-slate-200 dark:border-slate-800 p-6 overflow-x-auto custom-scrollbar">
         <div className="grid divide-x dark:divide-slate-800 min-w-[1000px] border-l dark:border-slate-800 rounded-3xl overflow-hidden bg-slate-50/30 dark:bg-slate-950/30" style={{ gridTemplateColumns: `80px repeat(${sectionClasses.length || 1}, 1fr)` }}>
             <div className="bg-slate-100 dark:bg-slate-950 p-4 text-[10px] font-black uppercase text-center border-b dark:border-slate-800">PRD</div>
-            {sectionClasses.map(cls => (
+            {sectionClasses.map((cls: ClassSection) => (
                 <div key={cls.id} className="bg-slate-100 dark:bg-slate-950 p-4 text-center uppercase text-[12px] font-black border-b dark:border-slate-800 truncate dark:text-slate-200">{cls.name}</div>
             ))}
             {PERIODS.map((p, pIndex) => (
@@ -362,7 +362,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                     <div className={`p-3 text-center border-t dark:border-slate-800 bg-slate-100 dark:bg-slate-950 h-24 flex flex-col justify-center`}>
                         <span className="font-black text-slate-800 dark:text-slate-100 text-[16px] leading-none mb-1">{p.label}</span>
                     </div>
-                    {sectionClasses.map(cls => (
+                    {sectionClasses.map((cls: ClassSection) => (
                         <div key={`${cls.id}_${pIndex}`} className="h-24 p-2 border-t border-l dark:border-slate-800">
                             {renderCell(cls.id, pIndex)}
                         </div>
@@ -429,7 +429,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                             {timetableMode === 'DAILY' ? 'Assign Substitute' : 'Master Assignment'}
                         </h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                            {editingSlot && `${classes.find(c => c.id === editingSlot.classId)?.name} • Period ${PERIODS[editingSlot.periodIndex].label}`}
+                            {editingSlot && `${classes.find((c: ClassSection) => c.id === editingSlot.classId)?.name} • Period ${PERIODS[editingSlot.periodIndex].label}`}
                         </p>
                       </div>
                       <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><X className="w-6 h-6 text-slate-500"/></button>
@@ -595,7 +595,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
               <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                   <div className="space-y-2">
-                      {classes.map(cls => (
+                      {classes.map((cls: ClassSection) => (
                           <div key={cls.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl group hover:border-brand-200 dark:hover:border-slate-700 transition-colors">
                               <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 bg-slate-100 dark:bg-slate-900 rounded-lg flex items-center justify-center text-xs font-black text-slate-500">{cls.name.substring(0,2)}</div>

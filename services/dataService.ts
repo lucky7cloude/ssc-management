@@ -1,59 +1,184 @@
 
 import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, TeacherMeeting, AttendanceStatus, AppNotification } from '../types';
-import { mockDb } from './mockDatabase';
+import { postgresService } from './postgresService';
 
-// API Layer pointing to our Mock Async Database
-export const getTeachers = async (): Promise<Teacher[]> => await mockDb.teachers.getAll();
-export const saveTeacher = async (teacher: Teacher) => await mockDb.teachers.save(teacher);
-export const deleteTeacher = async (id: string) => await mockDb.teachers.delete(id);
+// Local Storage Cache Key
+const CACHE_KEY = 'ssc_cloud_v7_local_db_cache';
 
-export const getClasses = async (): Promise<ClassSection[]> => await mockDb.classes.getAll();
-export const saveClasses = async (classes: ClassSection[]) => await mockDb.classes.saveAll(classes);
+const getCache = () => {
+    try {
+        const data = localStorage.getItem(CACHE_KEY);
+        return data ? JSON.parse(data) : {};
+    } catch (e) { return {}; }
+};
 
-export const getBaseSchedule = async (dayName: string) => await mockDb.schedule.getBase(dayName);
-export const saveBaseEntry = async (dayName: string, classId: string, periodIndex: number, entry: ScheduleEntry | null) => 
-    await mockDb.schedule.saveBase(dayName, classId, periodIndex, entry);
+const setCache = (data: any) => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+};
 
-export const getDailyOverrides = async (dateStr: string) => await mockDb.schedule.getOverrides(dateStr);
-export const saveDailyOverride = async (dateStr: string, classId: string, periodIndex: number, override: DailyOverride | null) => 
-    await mockDb.schedule.saveOverride(dateStr, classId, periodIndex, override);
+// API Layer pointing to our Real Database via postgresService
+export const getTeachers = async (): Promise<Teacher[]> => {
+    try {
+        return await postgresService.teachers.getAll();
+    } catch (e) {
+        console.warn("Using cached teachers");
+        return getCache().teachers || [];
+    }
+};
 
-export const getAttendanceForDate = async (dateStr: string) => await mockDb.attendance.getForDate(dateStr);
-export const markTeacherAttendance = async (dateStr: string, teacherId: string, status: AttendanceStatus) => 
-    await mockDb.attendance.mark(dateStr, teacherId, status);
+export const saveTeacher = async (teacher: Teacher) => {
+    try {
+        await postgresService.teachers.save(teacher);
+    } catch (e) {
+        const cache = getCache();
+        cache.teachers = (cache.teachers || []).filter((t: Teacher) => t.id !== teacher.id);
+        cache.teachers.push(teacher);
+        setCache(cache);
+    }
+};
 
-export const getTeacherInstructions = async (date: string) => await mockDb.instructions.get(date);
-export const saveTeacherInstructions = async (date: string, instructions: string) => 
-    await mockDb.instructions.save(date, instructions);
+export const deleteTeacher = async (id: string) => {
+    try {
+        await postgresService.teachers.delete(id);
+    } catch (e) {
+        const cache = getCache();
+        cache.teachers = (cache.teachers || []).filter((t: Teacher) => t.id !== id);
+        setCache(cache);
+    }
+};
 
-export const getEffectiveSchedule = async (dateStr: string, dayName: string) => {
-    const base = await getBaseSchedule(dayName);
-    const overrides = await getDailyOverrides(dateStr);
-    const attendance = await getAttendanceForDate(dateStr);
-    
-    const effective: Record<string, any> = { ...base };
-    
-    // Inject attendance into base entries
-    Object.keys(effective).forEach(key => {
-        const entry = effective[key];
-        if(entry && entry.teacherId) {
-             entry.status = attendance[entry.teacherId] || 'present';
+export const getClasses = async (): Promise<ClassSection[]> => {
+    try {
+        return await postgresService.classes.getAll();
+    } catch (e) {
+        return getCache().classes || [];
+    }
+};
+
+export const saveClasses = async (classes: ClassSection[]) => {
+    try {
+        for (const cls of classes) {
+            await postgresService.classes.save(cls);
         }
-    });
+    } catch (e) {
+        const cache = getCache();
+        cache.classes = classes;
+        setCache(cache);
+    }
+};
 
-    Object.keys(overrides).forEach(key => {
-        if (overrides[key]) {
-            const baseEntry = base[key] || {};
-            const override = overrides[key];
-            
-            // Determine active teacher for status check
-            const activeTeacherId = override.subTeacherId || baseEntry.teacherId;
-            const status = activeTeacherId ? (attendance[activeTeacherId] || 'present') : 'present';
+export const getBaseSchedule = async (dayName: string): Promise<Record<string, ScheduleEntry>> => {
+    try {
+        const data = await postgresService.timetable.getEffective('BASE', dayName);
+        return data.schedule;
+    } catch (e) {
+        return getCache().baseSchedule?.[dayName] || {};
+    }
+};
 
-            effective[key] = { ...baseEntry, ...override, isOverride: true, status };
-        }
-    });
-    return effective;
+export const saveBaseEntry = async (dayName: string, classId: string, periodIndex: number, entry: ScheduleEntry | null) => {
+    try {
+        await postgresService.timetable.saveBase(dayName, classId, periodIndex, entry);
+    } catch (e) {
+        const cache = getCache();
+        if (!cache.baseSchedule) cache.baseSchedule = {};
+        if (!cache.baseSchedule[dayName]) cache.baseSchedule[dayName] = {};
+        if (entry) cache.baseSchedule[dayName][`${classId}_${periodIndex}`] = entry;
+        else delete cache.baseSchedule[dayName][`${classId}_${periodIndex}`];
+        setCache(cache);
+    }
+};
+
+export const getDailyOverrides = async (dateStr: string): Promise<Record<string, DailyOverride>> => {
+    try {
+        const data = await postgresService.timetable.getEffective(dateStr, 'Monday');
+        return data.schedule;
+    } catch (e) {
+        return getCache().overrides?.[dateStr] || {};
+    }
+};
+
+export const saveDailyOverride = async (dateStr: string, classId: string, periodIndex: number, override: DailyOverride | null) => {
+    try {
+        await postgresService.timetable.saveSubstitution(dateStr, 'Monday', classId, periodIndex, override);
+    } catch (e) {
+        const cache = getCache();
+        if (!cache.overrides) cache.overrides = {};
+        if (!cache.overrides[dateStr]) cache.overrides[dateStr] = {};
+        if (override) cache.overrides[dateStr][`${classId}_${periodIndex}`] = override;
+        else delete cache.overrides[dateStr][`${classId}_${periodIndex}`];
+        setCache(cache);
+    }
+};
+
+export const getAttendanceForDate = async (dateStr: string): Promise<Record<string, AttendanceStatus>> => {
+    try {
+        const data = await postgresService.timetable.getEffective(dateStr, 'Monday');
+        return data.attendance;
+    } catch (e) {
+        return getCache().attendance?.[dateStr] || {};
+    }
+};
+
+export const markTeacherAttendance = async (dateStr: string, teacherId: string, status: AttendanceStatus) => {
+    try {
+        await postgresService.timetable.saveAttendance(dateStr, teacherId, status);
+    } catch (e) {
+        const cache = getCache();
+        if (!cache.attendance) cache.attendance = {};
+        if (!cache.attendance[dateStr]) cache.attendance[dateStr] = {};
+        cache.attendance[dateStr][teacherId] = status;
+        setCache(cache);
+    }
+};
+
+export const getTeacherInstructions = async (date: string): Promise<string> => {
+    try {
+        const data = await postgresService.timetable.getEffective(date, 'Monday');
+        return data.instruction;
+    } catch (e) {
+        return getCache().instructions?.[date] || '';
+    }
+};
+
+export const saveTeacherInstructions = async (date: string, instructions: string) => {
+    try {
+        await postgresService.timetable.saveInstruction(date, instructions);
+    } catch (e) {
+        const cache = getCache();
+        if (!cache.instructions) cache.instructions = {};
+        cache.instructions[date] = instructions;
+        setCache(cache);
+    }
+};
+
+export const getEffectiveSchedule = async (dateStr: string, dayName: string): Promise<Record<string, any>> => {
+    try {
+        const data = await postgresService.timetable.getEffective(dateStr, dayName);
+        return data.schedule;
+    } catch (e) {
+        // Local effective logic
+        const base = await getBaseSchedule(dayName);
+        const overrides = await getDailyOverrides(dateStr);
+        const attendance = await getAttendanceForDate(dateStr);
+        const effective: Record<string, any> = { ...base };
+        
+        Object.keys(effective).forEach(key => {
+            const entry = effective[key];
+            if(entry && entry.teacherId) entry.status = attendance[entry.teacherId] || 'present';
+        });
+
+        Object.keys(overrides).forEach(key => {
+            if (overrides[key]) {
+                const baseEntry = base[key] || {};
+                const override = overrides[key];
+                const activeTeacherId = override.subTeacherId || baseEntry.teacherId;
+                const status = activeTeacherId ? (attendance[activeTeacherId] || 'present') : 'present';
+                effective[key] = { ...baseEntry, ...override, isOverride: true, status };
+            }
+        });
+        return effective;
+    }
 };
 
 export const getTeacherDetailedStatus = async (teacherId: string, dateStr: string, dayName: string, periodIndex: number) => {
@@ -128,14 +253,32 @@ export const importData = async (file: File): Promise<boolean> => {
 
 export const resetData = () => { localStorage.clear(); window.location.reload(); };
 
-export const getRemarks = async (): Promise<TeacherRemark[]> => await mockDb.remarks.getAll();
-export const addRemark = async (r: TeacherRemark) => await mockDb.remarks.add(r);
-export const deleteRemark = async (id: string) => await mockDb.remarks.delete(id);
+export const getRemarks = async (): Promise<TeacherRemark[]> => await postgresService.remarks.getAll();
+export const addRemark = async (r: TeacherRemark) => {
+    await postgresService.remarks.save(r);
+    return await getRemarks();
+};
+export const deleteRemark = async (id: string) => {
+    await postgresService.remarks.delete(id);
+    return await getRemarks();
+};
 
-export const getExams = async (): Promise<ExamSchedule[]> => await mockDb.exams.getAll();
-export const addExam = async (e: ExamSchedule) => await mockDb.exams.save(e);
-export const deleteExam = async (id: string) => await mockDb.exams.delete(id);
+export const getExams = async (): Promise<ExamSchedule[]> => await postgresService.exams.getAll();
+export const addExam = async (e: ExamSchedule) => {
+    await postgresService.exams.save(e);
+    return await getExams();
+};
+export const deleteExam = async (id: string) => {
+    await postgresService.exams.delete(id);
+    return await getExams();
+};
 
-export const getMeetings = async (): Promise<TeacherMeeting[]> => await mockDb.meetings.getAll();
-export const saveMeeting = async (m: TeacherMeeting) => await mockDb.meetings.save(m);
-export const deleteMeeting = async (id: string) => await mockDb.meetings.delete(id);
+export const getMeetings = async (): Promise<TeacherMeeting[]> => await postgresService.meetings.getAll();
+export const saveMeeting = async (m: TeacherMeeting) => {
+    await postgresService.meetings.save(m);
+    return await getMeetings();
+};
+export const deleteMeeting = async (id: string) => {
+    await postgresService.meetings.delete(id);
+    return await getMeetings();
+};
