@@ -380,6 +380,12 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                 const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
                 const t = teachers.find(t => t.id === activeTeacherId);
                 let text = `${entry.subSubject || entry.subject || ''}\n${t?.name || 'Vacant'}`;
+                
+                if (entry.splitTeacherId) {
+                    const splitT = teachers.find(t => t.id === entry.splitTeacherId);
+                    text += `\n---\n${entry.splitSubject || ''}\n${splitT?.name || ''}`;
+                }
+                
                 if (entry.isOverride) text = `[SUB] ${text}`;
                 row.push(text);
             }
@@ -887,9 +893,12 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                                                                               const [_, periodStr] = key.split('_');
                                                                               if (parseInt(periodStr) !== pIdx) return false;
                                                                               const activeId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
-                                                                              return activeId === t.id;
+                                                                              return activeId === t.id || entry.splitTeacherId === t.id;
                                                                           });
-                                                                          const isAbsent = attendanceData[t.id] === 'absent';
+                                                                          const status = attendanceData[t.id] || 'present';
+                                                                          const isAbsent = status === 'absent' || 
+                                                                                           (status === 'half_day_before' && pIdx < 3) || 
+                                                                                           (status === 'half_day_after' && pIdx > 3);
                                                                           return !isBusy && !isAbsent && t.id !== substituteFor.teacherId;
                                                                       }).map(t => (
                                                                           <option key={t.id} value={t.id}>{t.name} ({t.subject || 'N/A'})</option>
