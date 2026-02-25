@@ -96,16 +96,19 @@ export const postgresService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(teacher)
       });
+      if (!res.ok) throw new Error("Failed to save teacher");
       return await res.json();
     },
     delete: async (id: string) => {
       const res = await fetch(`/api/teachers?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error("Failed to delete teacher");
       return await res.json();
     }
   },
   remarks: {
     getAll: async () => {
       const res = await fetch('/api/remarks');
+      if (!res.ok) throw new Error("Failed to fetch remarks");
       return await res.json();
     },
     save: async (remark: any) => {
@@ -114,16 +117,19 @@ export const postgresService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(remark)
       });
+      if (!res.ok) throw new Error("Failed to save remark");
       return await res.json();
     },
     delete: async (id: string) => {
       const res = await fetch(`/api/remarks?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error("Failed to delete remark");
       return await res.json();
     }
   },
   exams: {
     getAll: async () => {
       const res = await fetch('/api/exams');
+      if (!res.ok) throw new Error("Failed to fetch exams");
       return await res.json();
     },
     save: async (exam: any) => {
@@ -132,16 +138,19 @@ export const postgresService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(exam)
       });
+      if (!res.ok) throw new Error("Failed to save exam");
       return await res.json();
     },
     delete: async (id: string) => {
       const res = await fetch(`/api/exams?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error("Failed to delete exam");
       return await res.json();
     }
   },
   meetings: {
     getAll: async () => {
       const res = await fetch('/api/meetings');
+      if (!res.ok) throw new Error("Failed to fetch meetings");
       return await res.json();
     },
     save: async (meeting: any) => {
@@ -150,10 +159,12 @@ export const postgresService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meeting)
       });
+      if (!res.ok) throw new Error("Failed to save meeting");
       return await res.json();
     },
     delete: async (id: string) => {
       const res = await fetch(`/api/meetings?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error("Failed to delete meeting");
       return await res.json();
     }
   }
