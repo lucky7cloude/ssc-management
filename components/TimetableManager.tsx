@@ -169,8 +169,9 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         const busyIds = new Set<string>();
         
         Object.entries(scheduleData).forEach(([key, entry]: [string, any]) => {
-            const [_, periodStr] = key.split('_');
-            if (parseInt(periodStr) === pIdx) {
+            const parts = key.split('_');
+            const periodStr = parts.pop();
+            if (periodStr && parseInt(periodStr) === pIdx) {
                 const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
                 if (activeTeacherId) busyIds.add(activeTeacherId);
                 if (entry.splitTeacherId) busyIds.add(entry.splitTeacherId);
@@ -442,8 +443,11 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     // Find who is busy in this period
     const busyMap = new Map<string, string>(); // teacherId -> className
     Object.entries(scheduleData).forEach(([key, entry]: [string, any]) => {
-        const [cId, pIdx] = key.split('_');
-        if (parseInt(pIdx) === periodIndex && cId !== classId) {
+        const parts = key.split('_');
+        const pIdxStr = parts.pop();
+        const cId = parts.join('_');
+        
+        if (pIdxStr && parseInt(pIdxStr) === periodIndex && cId !== classId) {
             const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
             const splitTeacherId = entry.splitTeacherId;
             const cls = classes.find(c => c.id === cId);
@@ -916,8 +920,9 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                                                                       {teachers.filter(t => {
                                                                           // Check if teacher is free in this period
                                                                           const isBusy = Object.entries(scheduleData).some(([key, entry]: [string, any]) => {
-                                                                              const [_, periodStr] = key.split('_');
-                                                                              if (parseInt(periodStr) !== pIdx) return false;
+                                                                              const parts = key.split('_');
+                                                                              const periodStr = parts.pop();
+                                                                              if (!periodStr || parseInt(periodStr) !== pIdx) return false;
                                                                               const activeId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
                                                                               return activeId === t.id || entry.splitTeacherId === t.id;
                                                                           });
