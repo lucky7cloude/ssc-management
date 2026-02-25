@@ -2,7 +2,7 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL || (await import('fs')).readFileSync('.env.example', 'utf8').match(/DATABASE_URL=(.+)/)?.[1].trim();
 
   if (!databaseUrl) {
     console.error('DATABASE_URL is not defined.');
@@ -10,16 +10,6 @@ export default async function handler(req: any, res: any) {
   }
 
   const sql = neon(databaseUrl);
-
-  // Ensure columns exist (Migration)
-  try {
-    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS split_teacher_id TEXT`;
-    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS split_subject TEXT`;
-    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS split_note TEXT`;
-    await sql`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS merged_class_ids TEXT`;
-  } catch (e) {
-    console.error("Migration error:", e);
-  }
 
   try {
     const { method } = req;
@@ -43,6 +33,7 @@ export default async function handler(req: any, res: any) {
       attendanceRows.forEach((r: any) => attendance[r.teacher_id] = r.status);
 
       baseRows.forEach((row: any) => {
+        if (!row.class_id) return;
         const key = `${row.class_id}_${row.period_index}`;
         baseSchedule[key] = { 
           teacherId: row.teacher_id, 
@@ -57,6 +48,7 @@ export default async function handler(req: any, res: any) {
       });
 
       subRows.forEach((row: any) => {
+        if (!row.class_id) return;
         const key = `${row.class_id}_${row.period_index}`;
         dailyOverrides[key] = { 
           subTeacherId: row.teacher_id, 
@@ -86,18 +78,19 @@ export default async function handler(req: any, res: any) {
       if (type === 'SAVE_BASE') {
         const { dayName, classId, periodIndex, entry } = payload;
         
-        await sql`
-          DELETE FROM timetable 
-          WHERE day_name = ${dayName} 
-            AND class_id = ${classId} 
-            AND period_index = ${periodIndex} 
-            AND is_base_schedule = true
-        `;
-
-        if (entry) {
+        if (!entry) {
           await sql`
-            INSERT INTO timetable (day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, date_str, split_teacher_id, split_subject, split_note, merged_class_ids)
+            DELETE FROM timetable 
+            WHERE day_name = ${dayName} 
+              AND class_id = ${classId} 
+              AND period_index = ${periodIndex} 
+              AND is_base_schedule = true
+          `;
+        } else {
+          await sql`
+            INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, split_teacher_id, split_subject, split_note, merged_class_ids)
             VALUES (
+              'BASE',
               ${dayName}, 
               ${classId}, 
               ${periodIndex}, 
@@ -105,12 +98,20 @@ export default async function handler(req: any, res: any) {
               ${entry.subject || null}, 
               ${entry.note || null}, 
               true, 
-              'BASE',
               ${entry.splitTeacherId || null},
               ${entry.splitSubject || null},
               ${entry.splitNote || null},
               ${entry.mergedClassIds ? JSON.stringify(entry.mergedClassIds) : null}
             )
+            ON CONFLICT (date_str, day_name, class_id, period_index, is_base_schedule) 
+            DO UPDATE SET 
+              teacher_id = EXCLUDED.teacher_id,
+              subject = EXCLUDED.subject,
+              note = EXCLUDED.note,
+              split_teacher_id = EXCLUDED.split_teacher_id,
+              split_subject = EXCLUDED.split_subject,
+              split_note = EXCLUDED.split_note,
+              merged_class_ids = EXCLUDED.merged_class_ids
           `;
         }
       } 
@@ -118,15 +119,15 @@ export default async function handler(req: any, res: any) {
       else if (type === 'SAVE_SUBSTITUTION') {
         const { dateStr, dayName, classId, periodIndex, override } = payload;
         
-        await sql`
-          DELETE FROM timetable 
-          WHERE date_str = ${dateStr} 
-            AND class_id = ${classId} 
-            AND period_index = ${periodIndex} 
-            AND is_base_schedule = false
-        `;
-
-        if (override) {
+        if (!override) {
+          await sql`
+            DELETE FROM timetable 
+            WHERE date_str = ${dateStr} 
+              AND class_id = ${classId} 
+              AND period_index = ${periodIndex} 
+              AND is_base_schedule = false
+          `;
+        } else {
           await sql`
             INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, split_teacher_id, split_subject, split_note, merged_class_ids)
             VALUES (
@@ -143,6 +144,15 @@ export default async function handler(req: any, res: any) {
               ${override.splitNote || null},
               ${override.mergedClassIds ? JSON.stringify(override.mergedClassIds) : null}
             )
+            ON CONFLICT (date_str, day_name, class_id, period_index, is_base_schedule) 
+            DO UPDATE SET 
+              teacher_id = EXCLUDED.teacher_id,
+              subject = EXCLUDED.subject,
+              note = EXCLUDED.note,
+              split_teacher_id = EXCLUDED.split_teacher_id,
+              split_subject = EXCLUDED.split_subject,
+              split_note = EXCLUDED.split_note,
+              merged_class_ids = EXCLUDED.merged_class_ids
           `;
         }
       } 

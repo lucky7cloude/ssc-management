@@ -2,7 +2,7 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL || (await import('fs')).readFileSync('.env.example', 'utf8').match(/DATABASE_URL=(.+)/)?.[1].trim();
   if (!databaseUrl) {
     return res.status(500).json({ error: 'DATABASE_URL missing' });
   }
