@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Teacher, PREDEFINED_COLORS, UserRole, AttendanceStatus, SCHOOL_LOGO_URL } from '../types';
 import * as dataService from '../services/dataService';
 import { postgresService } from '../services/postgresService';
-import { UserPlus, Trash2, CheckCircle, ShieldAlert, RefreshCw, Loader2, Save, UserX, Clock, X, Search } from 'lucide-react';
+import { UserPlus, Trash2, CheckCircle, ShieldAlert, RefreshCw, Loader2, Save, UserX, Clock, X, Search, Edit2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PERIODS } from '../types';
 
@@ -14,7 +14,9 @@ interface Props {
 export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
   const [selectedColor, setSelectedColor] = useState(PREDEFINED_COLORS[0]);
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
 
   const selectedDayName = React.useMemo(() => {
@@ -49,6 +51,10 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
     mutationFn: (teacher: Teacher) => dataService.saveTeacher(teacher),
     onSuccess: () => {
         setName('');
+        setSubject('');
+        setSelectedColor(PREDEFINED_COLORS[0]);
+        setEditingTeacherId(null);
+        queryClient.invalidateQueries({ queryKey: ['static-data'] });
         queryClient.invalidateQueries({ queryKey: ['teachers'] });
     }
   });
@@ -70,12 +76,28 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
     if (!name.trim()) return;
 
     const teacherData: Teacher = {
-      id: Date.now().toString(),
+      id: editingTeacherId || Date.now().toString(),
       name: name.trim(),
       initials: name.trim().split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
       color: selectedColor,
+      subject: subject.trim() || undefined
     };
     saveTeacherMutation.mutate(teacherData);
+  };
+
+  const handleEditClick = (teacher: Teacher) => {
+    setEditingTeacherId(teacher.id);
+    setName(teacher.name);
+    setSubject(teacher.subject || '');
+    setSelectedColor(teacher.color);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingTeacherId(null);
+    setName('');
+    setSubject('');
+    setSelectedColor(PREDEFINED_COLORS[0]);
   };
 
   const getAttendanceBtnStyle = (tId: string, status: AttendanceStatus) => {
@@ -110,27 +132,39 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
       {currentRole === 'PRINCIPAL' && (
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-800">
             <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2 uppercase tracking-tight">
-              <UserPlus className="w-6 h-6 text-brand-600" /> New Staff Entry
+              {editingTeacherId ? <Edit2 className="w-6 h-6 text-brand-600" /> : <UserPlus className="w-6 h-6 text-brand-600" />}
+              {editingTeacherId ? 'Edit Staff Profile' : 'New Staff Entry'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">Legal Name</label>
                         <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full text-sm h-12" placeholder="e.g. John Doe" required />
                     </div>
                     <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">Primary Subject</label>
+                        <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full text-sm h-12" placeholder="e.g. Mathematics" />
+                    </div>
+                    <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">System Color Identifier</label>
-                        <div className="flex gap-2">
-                            {PREDEFINED_COLORS.slice(0, 8).map(c => (
-                                <button key={c} type="button" onClick={() => setSelectedColor(c)} className={`w-10 h-10 rounded-xl border-4 ${selectedColor === c ? 'border-brand-500 scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} />
+                        <div className="flex flex-wrap gap-2">
+                            {PREDEFINED_COLORS.slice(0, 10).map(c => (
+                                <button key={c} type="button" onClick={() => setSelectedColor(c)} className={`w-8 h-8 rounded-xl border-4 ${selectedColor === c ? 'border-brand-500 scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} />
                             ))}
                         </div>
                     </div>
                 </div>
-                <button type="submit" disabled={saveTeacherMutation.isPending} className="w-full bg-slate-900 dark:bg-black text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-600 shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95">
-                    {saveTeacherMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                    Publish Staff Profile
-                </button>
+                <div className="flex gap-4">
+                    <button type="submit" disabled={saveTeacherMutation.isPending} className="flex-1 bg-slate-900 dark:bg-black text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-brand-600 shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95">
+                        {saveTeacherMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                        {editingTeacherId ? 'Update Profile' : 'Publish Staff Profile'}
+                    </button>
+                    {editingTeacherId && (
+                        <button type="button" onClick={cancelEdit} className="px-8 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-200 transition-all">
+                            Cancel
+                        </button>
+                    )}
+                </div>
             </form>
           </div>
       )}
@@ -177,7 +211,10 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
                     </div>
                  </div>
 
-                 <div className="mt-6 pt-4 border-t dark:border-slate-800 flex justify-end">
+                 <div className="mt-6 pt-4 border-t dark:border-slate-800 flex justify-end gap-2">
+                    {currentRole === 'PRINCIPAL' && (
+                        <button onClick={() => handleEditClick(teacher)} className="p-2 text-slate-300 hover:text-brand-500 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                    )}
                     <button onClick={async () => {
                         if (confirm('Delete profile?')) {
                             await dataService.deleteTeacher(teacher.id);

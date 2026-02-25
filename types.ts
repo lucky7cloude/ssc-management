@@ -18,6 +18,7 @@ export interface ClassSection {
   id: string;
   name: string;
   section: 'SECONDARY' | 'SENIOR_SECONDARY';
+  sort_order?: number;
 }
 
 export interface ScheduleEntry {
