@@ -82,6 +82,18 @@ export const postgresService = {
       });
       if (!res.ok) throw new Error("API Save failed");
       return await res.json();
+    },
+    copySchedule: async (sourceDate: string, targetDate: string, targetDayName: string) => {
+      const res = await fetch('/api/timetable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'COPY_SCHEDULE',
+          payload: { sourceDate, targetDate, targetDayName }
+        })
+      });
+      if (!res.ok) throw new Error("API Copy failed");
+      return await res.json();
     }
   },
   teachers: {

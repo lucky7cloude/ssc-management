@@ -7,8 +7,9 @@ import { postgresService } from '../services/postgresService';
 import { 
   ChevronRight, ChevronLeft, X, Layout, Plus, Calendar as CalendarIcon, 
   Loader2, Save, Download, UserCheck, Info, Settings, Trash2, Edit2, Check, Search, Eraser, UserX, Clock,
-  ArrowUp, ArrowDown, ChevronDown
+  ArrowUp, ArrowDown, ChevronDown, GripVertical
 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -53,7 +54,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClassManagerOpen, setIsClassManagerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'CLASSES' | 'PERIODS'>('CLASSES');
-  const [tempPeriods, setTempPeriods] = useState<Record<number, {start: string, end: string}>>({});
+  const [tempPeriods, setTempPeriods] = useState<PeriodConfig[]>([]);
   const [isAttendanceManagerOpen, setIsAttendanceManagerOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{classId: string, periodIndex: number} | null>(null);
   
@@ -106,17 +107,34 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
   useEffect(() => {
     if (isClassManagerOpen && periodConfigs) {
-      const initial: Record<number, {start: string, end: string}> = {};
-      activePeriods.forEach((_, idx) => {
-        const config = periodConfigs.find(pc => pc.period_index === idx);
-        initial[idx] = {
-          start: config?.start_time || '',
-          end: config?.end_time || ''
-        };
-      });
-      setTempPeriods(initial);
+      if (periodConfigs.length > 0) {
+        setTempPeriods(periodConfigs.map(pc => ({...pc})));
+      } else {
+        // Initialize with default PERIODS if no config exists
+        setTempPeriods(PERIODS.map((p, idx) => ({
+          period_index: idx,
+          start_time: p.start,
+          end_time: p.end,
+          label: p.label,
+          is_lunch: p.is_lunch
+        })));
+      }
     }
-  }, [isClassManagerOpen, periodConfigs, activePeriods]);
+  }, [isClassManagerOpen, periodConfigs]);
+
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    const items = Array.from(tempPeriods);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    
+    // Update period_index based on new order
+    const updated = items.map((item, idx) => ({
+      ...item,
+      period_index: idx
+    }));
+    setTempPeriods(updated);
+  };
 
   const { data: dbData } = useQuery({
     queryKey: ['schedule', selectedDate, selectedDayName],
@@ -166,6 +184,22 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const instructionMutation = useMutation({
     mutationFn: (text: string) => dataService.saveTeacherInstructions(selectedDate, text),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedule'] })
+  });
+
+  const copyScheduleMutation = useMutation({
+    mutationFn: async () => {
+        const [year, month, day] = selectedDate.split('-').map(Number);
+        const nextDateObj = new Date(year, month - 1, day);
+        nextDateObj.setDate(nextDateObj.getDate() + 1);
+        const nextDateStr = nextDateObj.toLocaleDateString('en-CA');
+        const nextDayName = nextDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        
+        return await postgresService.timetable.copySchedule(selectedDate, nextDateStr, nextDayName);
+    },
+    onSuccess: () => {
+        alert("Schedule copied to next day successfully!");
+        queryClient.invalidateQueries({ queryKey: ['schedule'] });
+    }
   });
 
   // Individual Class Mutations
@@ -537,6 +571,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                 </button>
               </>
             )}
+            <button onClick={() => copyScheduleMutation.mutate()} disabled={copyScheduleMutation.isPending} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg disabled:opacity-50">
+                {copyScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarIcon className="w-4 h-4" />}
+                Repeat Next Day
+            </button>
             <button onClick={downloadPDF} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-black text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-brand-600 transition-all shadow-lg"><Download className="w-4 h-4" /> PDF</button>
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border dark:border-slate-700">
             <div className="relative">
@@ -1148,18 +1186,18 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
             <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-pop-in border dark:border-slate-800 flex flex-col max-h-[85vh]">
               <div className="bg-slate-950 p-6 border-b dark:border-slate-800 flex justify-between items-center text-white">
-                  <div className="flex gap-6">
+                  <div className="flex bg-slate-900 p-1 rounded-xl">
                       <button 
                         onClick={() => setActiveTab('CLASSES')}
-                        className={`font-black uppercase tracking-widest text-xs flex items-center gap-2 transition-all ${activeTab === 'CLASSES' ? 'text-brand-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        className={`px-4 py-2 rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all ${activeTab === 'CLASSES' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
                       >
-                        <Settings className="w-4 h-4" /> Class Registry
+                        <Settings className="w-3.5 h-3.5" /> Classes
                       </button>
                       <button 
                         onClick={() => setActiveTab('PERIODS')}
-                        className={`font-black uppercase tracking-widest text-xs flex items-center gap-2 transition-all ${activeTab === 'PERIODS' ? 'text-brand-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        className={`px-4 py-2 rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all ${activeTab === 'PERIODS' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
                       >
-                        <Clock className="w-4 h-4" /> Period Timing
+                        <Clock className="w-3.5 h-3.5" /> Period Timing
                       </button>
                   </div>
                   <button onClick={() => { setIsClassManagerOpen(false); setNewClassName(''); setEditingClassId(null); }} className="p-2 hover:bg-white/10 rounded-xl transition-colors"><X className="w-5 h-5"/></button>
@@ -1260,48 +1298,134 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                 </>
               ) : (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="p-8 bg-brand-50/50 dark:bg-brand-900/10 border-b dark:border-slate-800">
-                        <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight mb-2">Configure Period Timings</h4>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Set start and end times for each period. Leave blank to hide.</p>
+                    <div className="p-8 bg-brand-50/50 dark:bg-brand-900/10 border-b dark:border-slate-800 flex justify-between items-center">
+                        <div>
+                            <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight mb-1">Configure Period Timings</h4>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Set start and end times for each period.</p>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                const nextIndex = tempPeriods.length;
+                                setTempPeriods([...tempPeriods, { period_index: nextIndex, start_time: '', end_time: '', label: '', is_lunch: false }]);
+                            }}
+                            className="bg-brand-600 text-white p-2 rounded-xl hover:bg-brand-700 transition-all shadow-lg"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                        {activePeriods.map((p, idx) => (
-                            <div key={idx} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl flex items-center gap-4">
-                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-xs font-black text-brand-600 shrink-0">{p.label}</div>
-                                <div className="grid grid-cols-2 gap-3 flex-1">
-                                    <div className="space-y-1">
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Start</label>
-                                        <input 
-                                            type="text" 
-                                            value={tempPeriods[idx]?.start || ''} 
-                                            onChange={e => setTempPeriods({...tempPeriods, [idx]: {...(tempPeriods[idx] || {}), start: e.target.value}})}
-                                            placeholder="09:00 AM" 
-                                            className="w-full text-[10px] h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
-                                        />
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                        <DragDropContext onDragEnd={onDragEnd}>
+                            <Droppable droppableId="periods">
+                                {(provided) => (
+                                    <div 
+                                        {...provided.droppableProps}
+                                        ref={provided.innerRef}
+                                        className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
+                                    >
+                                        {tempPeriods.map((p, idx) => (
+                                            <Draggable key={`period-${idx}`} draggableId={`period-${idx}`} index={idx}>
+                                                {(provided, snapshot) => (
+                                                    <div 
+                                                        ref={provided.innerRef}
+                                                        {...provided.draggableProps}
+                                                        className={`p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl space-y-3 ${snapshot.isDragging ? 'shadow-2xl border-brand-500 scale-[1.02] z-[300]' : ''} transition-all`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <div {...provided.dragHandleProps} className="p-1 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing">
+                                                                    <GripVertical className="w-4 h-4" />
+                                                                </div>
+                                                                <div className="w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center text-[10px] font-black text-brand-600 shrink-0">{idx + 1}</div>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={p.label || ''} 
+                                                                    onChange={e => {
+                                                                        const next = [...tempPeriods];
+                                                                        next[idx].label = e.target.value;
+                                                                        setTempPeriods(next);
+                                                                    }}
+                                                                    placeholder="Label (e.g. I, II, LUNCH)" 
+                                                                    className="text-xs font-black uppercase tracking-widest bg-transparent border-none focus:ring-0 p-0 w-32"
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center gap-4">
+                                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={p.is_lunch} 
+                                                                        onChange={e => {
+                                                                            const next = [...tempPeriods];
+                                                                            next[idx].is_lunch = e.target.checked;
+                                                                            if (e.target.checked) next[idx].label = 'LUNCH';
+                                                                            setTempPeriods(next);
+                                                                        }}
+                                                                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                                                    />
+                                                                    <span className="text-[10px] font-black uppercase text-slate-400">Lunch</span>
+                                                                </label>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const next = tempPeriods.filter((_, i) => i !== idx).map((p, i) => ({...p, period_index: i}));
+                                                                        setTempPeriods(next);
+                                                                    }}
+                                                                    className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={p.start_time || ''} 
+                                                                    onChange={e => {
+                                                                        const next = [...tempPeriods];
+                                                                        next[idx].start_time = e.target.value;
+                                                                        setTempPeriods(next);
+                                                                    }}
+                                                                    placeholder="09:00 AM" 
+                                                                    className="w-full text-[10px] h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={p.end_time || ''} 
+                                                                    onChange={e => {
+                                                                        const next = [...tempPeriods];
+                                                                        next[idx].end_time = e.target.value;
+                                                                        setTempPeriods(next);
+                                                                    }}
+                                                                    placeholder="10:00 AM" 
+                                                                    className="w-full text-[10px] h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                        {provided.placeholder}
+                                        {tempPeriods.length === 0 && (
+                                            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-4">
+                                                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                                    <Clock className="w-8 h-8 opacity-20" />
+                                                </div>
+                                                <p className="text-xs font-black uppercase tracking-widest">No periods defined</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">End</label>
-                                        <input 
-                                            type="text" 
-                                            value={tempPeriods[idx]?.end || ''} 
-                                            onChange={e => setTempPeriods({...tempPeriods, [idx]: {...(tempPeriods[idx] || {}), end: e.target.value}})}
-                                            placeholder="10:00 AM" 
-                                            className="w-full text-[10px] h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                                )}
+                            </Droppable>
+                        </DragDropContext>
                     </div>
                     <div className="p-6 bg-white dark:bg-slate-900 border-t dark:border-slate-800">
                         <button 
                             onClick={() => {
-                                const configs = Object.entries(tempPeriods).map(([idx, times]) => ({
-                                    period_index: parseInt(idx),
-                                    start_time: times.start,
-                                    end_time: times.end
-                                }));
-                                savePeriodsMutation.mutate(configs);
+                                savePeriodsMutation.mutate(tempPeriods);
                             }}
                             disabled={savePeriodsMutation.isPending}
                             className="w-full bg-brand-600 text-white h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-brand-700 shadow-lg transition-all active:scale-95 disabled:opacity-50"
