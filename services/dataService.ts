@@ -1,5 +1,5 @@
 
-import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, TeacherMeeting, AttendanceStatus, AppNotification } from '../types';
+import { Teacher, ScheduleEntry, DailyOverride, ClassSection, TeacherRemark, ExamSchedule, TeacherMeeting, AttendanceStatus, AppNotification, PeriodConfig } from '../types';
 import { postgresService } from './postgresService';
 
 // Local Storage Cache Key
@@ -309,4 +309,22 @@ export const saveMeeting = async (m: TeacherMeeting) => {
 export const deleteMeeting = async (id: string) => {
     await postgresService.meetings.delete(id);
     return await getMeetings();
+};
+
+export const getPeriodConfigs = async (): Promise<PeriodConfig[]> => {
+    try {
+        return await postgresService.periods.getAll();
+    } catch (e) {
+        return getCache().periodConfigs || [];
+    }
+};
+
+export const savePeriodConfigs = async (configs: PeriodConfig[]) => {
+    try {
+        await postgresService.periods.save(configs);
+    } catch (e) {
+        const cache = getCache();
+        cache.periodConfigs = configs;
+        setCache(cache);
+    }
 };

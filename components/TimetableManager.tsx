@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PERIODS, Teacher, UserRole, ScheduleEntry, DailyOverride, ClassSection, AttendanceStatus } from '../types';
+import { PERIODS, Teacher, UserRole, ScheduleEntry, DailyOverride, ClassSection, AttendanceStatus, PeriodConfig } from '../types';
 import * as dataService from '../services/dataService';
 import { postgresService } from '../services/postgresService';
 import { 
@@ -25,6 +25,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClassManagerOpen, setIsClassManagerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'CLASSES' | 'PERIODS'>('CLASSES');
+  const [tempPeriods, setTempPeriods] = useState<Record<number, {start: string, end: string}>>({});
   const [isAttendanceManagerOpen, setIsAttendanceManagerOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{classId: string, periodIndex: number} | null>(null);
   
@@ -59,19 +61,42 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long' });
   }, [selectedDate]);
 
+  const [editingPeriodIndex, setEditingPeriodIndex] = useState<number | null>(null);
+  const [editingPeriodStart, setEditingPeriodStart] = useState('');
+  const [editingPeriodEnd, setEditingPeriodEnd] = useState('');
+
   // Use postgresService for classes now
   const { data: staticData } = useQuery({
     queryKey: ['static-data'],
     queryFn: async () => {
         // Attempt to fetch from API, fallbacks handled in postgresService
-        const [c, t] = await Promise.all([dataService.getClasses(), dataService.getTeachers()]);
-        return { classes: c, teachers: t };
+        const [c, t, p] = await Promise.all([
+            dataService.getClasses(), 
+            dataService.getTeachers(),
+            dataService.getPeriodConfigs()
+        ]);
+        return { classes: c, teachers: t, periodConfigs: p };
     },
     staleTime: 60000 
   });
 
   const teachers = staticData?.teachers || [];
   const classes = staticData?.classes || [];
+  const periodConfigs = staticData?.periodConfigs || [];
+
+  useEffect(() => {
+    if (isClassManagerOpen && periodConfigs) {
+      const initial: Record<number, {start: string, end: string}> = {};
+      PERIODS.forEach((_, idx) => {
+        const config = periodConfigs.find(pc => pc.period_index === idx);
+        initial[idx] = {
+          start: config?.start_time || '',
+          end: config?.end_time || ''
+        };
+      });
+      setTempPeriods(initial);
+    }
+  }, [isClassManagerOpen, periodConfigs]);
 
   const { data: dbData } = useQuery({
     queryKey: ['schedule', selectedDate, selectedDayName],
@@ -146,6 +171,14 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     },
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['static-data'] });
+    }
+  });
+
+  const savePeriodsMutation = useMutation({
+    mutationFn: (configs: PeriodConfig[]) => dataService.savePeriodConfigs(configs),
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['static-data'] });
+        setIsClassManagerOpen(false);
     }
   });
 
@@ -529,8 +562,69 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             ))}
             {PERIODS.map((p, pIndex) => (
                 <React.Fragment key={pIndex}>
-                    <div className={`p-3 text-center border-t dark:border-slate-800 bg-slate-100 dark:bg-slate-950 h-24 flex flex-col justify-center`}>
-                        <span className="font-black text-slate-800 dark:text-slate-100 text-[16px] leading-none mb-1">{p.label}</span>
+                    <div 
+                        className={`p-3 text-center border-t dark:border-slate-800 bg-slate-100 dark:bg-slate-950 h-24 flex flex-col justify-center relative group ${(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') ? 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors' : ''}`}
+                        onClick={() => {
+                            if (currentRole !== 'PRINCIPAL' && currentRole !== 'MANAGEMENT') return;
+                            if (editingPeriodIndex === pIndex) return; // Already editing
+                            const config = periodConfigs.find(pc => pc.period_index === pIndex);
+                            setEditingPeriodStart(config?.start_time || '');
+                            setEditingPeriodEnd(config?.end_time || '');
+                            setEditingPeriodIndex(pIndex);
+                        }}
+                    >
+                        {editingPeriodIndex === pIndex ? (
+                            <div className="flex flex-col gap-1 z-10 bg-white dark:bg-slate-900 p-2 rounded-xl shadow-xl border dark:border-slate-700 absolute inset-x-1 top-1/2 -translate-y-1/2" onClick={e => e.stopPropagation()}>
+                                <input 
+                                    type="text" 
+                                    value={editingPeriodStart} 
+                                    onChange={e => setEditingPeriodStart(e.target.value)}
+                                    placeholder="Start" 
+                                    className="w-full text-[9px] h-6 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded px-1 font-bold text-center"
+                                />
+                                <input 
+                                    type="text" 
+                                    value={editingPeriodEnd} 
+                                    onChange={e => setEditingPeriodEnd(e.target.value)}
+                                    placeholder="End" 
+                                    className="w-full text-[9px] h-6 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded px-1 font-bold text-center"
+                                />
+                                <div className="flex gap-1 mt-1">
+                                    <button 
+                                        onClick={() => {
+                                            const newConfigs = [...periodConfigs];
+                                            const existingIdx = newConfigs.findIndex(pc => pc.period_index === pIndex);
+                                            if (existingIdx >= 0) {
+                                                newConfigs[existingIdx] = { period_index: pIndex, start_time: editingPeriodStart, end_time: editingPeriodEnd };
+                                            } else {
+                                                newConfigs.push({ period_index: pIndex, start_time: editingPeriodStart, end_time: editingPeriodEnd });
+                                            }
+                                            savePeriodsMutation.mutate(newConfigs, { onSuccess: () => setEditingPeriodIndex(null) });
+                                        }}
+                                        className="flex-1 bg-brand-600 text-white text-[8px] py-1 rounded font-bold"
+                                    >
+                                        Save
+                                    </button>
+                                    <button onClick={() => setEditingPeriodIndex(null)} className="flex-1 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[8px] py-1 rounded font-bold">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <span className="font-black text-slate-800 dark:text-slate-100 text-[16px] leading-none mb-1">{p.label}</span>
+                                {periodConfigs.find(pc => pc.period_index === pIndex) && (periodConfigs.find(pc => pc.period_index === pIndex)?.start_time || periodConfigs.find(pc => pc.period_index === pIndex)?.end_time) && (
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                                        {periodConfigs.find(pc => pc.period_index === pIndex)?.start_time} - {periodConfigs.find(pc => pc.period_index === pIndex)?.end_time}
+                                    </span>
+                                )}
+                                {(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') && (
+                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Edit2 className="w-3 h-3 text-slate-400" />
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                     {sectionClasses.map((cls: ClassSection) => (
                         <div key={`${cls.id}_${pIndex}`} className="h-24 p-2 border-t border-l dark:border-slate-800">
@@ -1021,105 +1115,173 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       {/* Class Manager Modal */}
       {isClassManagerOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
-           <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-pop-in border dark:border-slate-800 flex flex-col max-h-[85vh]">
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-pop-in border dark:border-slate-800 flex flex-col max-h-[85vh]">
               <div className="bg-slate-950 p-6 border-b dark:border-slate-800 flex justify-between items-center text-white">
-                  <h3 className="font-black uppercase tracking-widest text-xs flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-brand-400" /> Class Administration
-                  </h3>
+                  <div className="flex gap-6">
+                      <button 
+                        onClick={() => setActiveTab('CLASSES')}
+                        className={`font-black uppercase tracking-widest text-xs flex items-center gap-2 transition-all ${activeTab === 'CLASSES' ? 'text-brand-400' : 'text-slate-500 hover:text-slate-300'}`}
+                      >
+                        <Settings className="w-4 h-4" /> Class Registry
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab('PERIODS')}
+                        className={`font-black uppercase tracking-widest text-xs flex items-center gap-2 transition-all ${activeTab === 'PERIODS' ? 'text-brand-400' : 'text-slate-500 hover:text-slate-300'}`}
+                      >
+                        <Clock className="w-4 h-4" /> Period Timing
+                      </button>
+                  </div>
                   <button onClick={() => { setIsClassManagerOpen(false); setNewClassName(''); setEditingClassId(null); }} className="p-2 hover:bg-white/10 rounded-xl transition-colors"><X className="w-5 h-5"/></button>
               </div>
 
-              <div className="p-8 border-b dark:border-slate-800 bg-brand-50/50 dark:bg-brand-900/10">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white">
-                        {editingClassId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    </div>
-                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                        {editingClassId ? 'Modify Existing Class' : 'Register New Class'}
-                    </h4>
-                  </div>
-                  
-                  <div className="flex flex-col gap-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Identity</label>
-                            <input 
-                                type="text" 
-                                value={newClassName} 
-                                onChange={e => setNewClassName(e.target.value)}
-                                placeholder="e.g. 10-C" 
-                                className="w-full text-sm h-12 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-2xl px-4 font-bold focus:ring-4 focus:ring-brand-500/10 transition-all"
-                            />
+              {activeTab === 'CLASSES' ? (
+                <>
+                  <div className="p-8 border-b dark:border-slate-800 bg-brand-50/50 dark:bg-brand-900/10">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white">
+                            {editingClassId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Academic Level</label>
-                            <select 
-                                value={newClassSection}
-                                onChange={(e: any) => setNewClassSection(e.target.value)}
-                                className="w-full text-xs h-12 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-2xl px-4 font-bold focus:ring-4 focus:ring-brand-500/10 transition-all"
-                            >
-                                <option value="SECONDARY">Secondary</option>
-                                <option value="SENIOR_SECONDARY">Sr. Secondary</option>
-                            </select>
-                        </div>
+                        <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                            {editingClassId ? 'Modify Existing Class' : 'Register New Class'}
+                        </h4>
                       </div>
                       
-                      <div className="flex gap-2">
-                        {editingClassId ? (
-                             <>
-                               <button onClick={() => handleUpdateClass(editingClassId)} disabled={addClassMutation.isPending} className="flex-1 bg-brand-600 text-white h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-brand-700 shadow-lg transition-all active:scale-95 disabled:opacity-50">
-                                   {addClassMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>}
-                                   Update Class
-                               </button>
-                               <button onClick={() => { setEditingClassId(null); setNewClassName(''); }} className="px-6 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-300 transition-all">Cancel</button>
-                             </>
-                          ) : (
-                             <button onClick={handleAddClass} disabled={addClassMutation.isPending} className="w-full bg-slate-900 dark:bg-black text-white h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-brand-600 shadow-lg transition-all active:scale-95 disabled:opacity-50">
-                                 {addClassMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>}
-                                 Add to Registry
-                             </button>
+                      <div className="flex flex-col gap-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Identity</label>
+                                <input 
+                                    type="text" 
+                                    value={newClassName} 
+                                    onChange={e => setNewClassName(e.target.value)}
+                                    placeholder="e.g. 10-C" 
+                                    className="w-full text-sm h-12 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-2xl px-4 font-bold focus:ring-4 focus:ring-brand-500/10 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Academic Level</label>
+                                <select 
+                                    value={newClassSection}
+                                    onChange={(e: any) => setNewClassSection(e.target.value)}
+                                    className="w-full text-xs h-12 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-2xl px-4 font-bold focus:ring-4 focus:ring-brand-500/10 transition-all"
+                                >
+                                    <option value="SECONDARY">Secondary</option>
+                                    <option value="SENIOR_SECONDARY">Sr. Secondary</option>
+                                </select>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            {editingClassId ? (
+                                 <>
+                                   <button onClick={() => handleUpdateClass(editingClassId)} disabled={addClassMutation.isPending} className="flex-1 bg-brand-600 text-white h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-brand-700 shadow-lg transition-all active:scale-95 disabled:opacity-50">
+                                       {addClassMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>}
+                                       Update Class
+                                   </button>
+                                   <button onClick={() => { setEditingClassId(null); setNewClassName(''); }} className="px-6 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-300 transition-all">Cancel</button>
+                                 </>
+                              ) : (
+                                 <button onClick={handleAddClass} disabled={addClassMutation.isPending} className="w-full bg-slate-900 dark:bg-black text-white h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-brand-600 shadow-lg transition-all active:scale-95 disabled:opacity-50">
+                                     {addClassMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>}
+                                     Add to Registry
+                                 </button>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/30 dark:bg-slate-950/30">
+                      <div className="flex items-center justify-between mb-4 px-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Active Classes ({classes.length})</span>
+                      </div>
+                      <div className="space-y-3">
+                          {classes.map((cls: ClassSection) => (
+                              <div key={cls.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl group hover:border-brand-500 hover:shadow-xl transition-all">
+                                  <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-sm font-black text-brand-600 shadow-inner">{cls.name.substring(0,2)}</div>
+                                      <div>
+                                          <h4 className="text-base font-black text-slate-800 dark:text-slate-100 tracking-tight">{cls.name}</h4>
+                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cls.section === 'SECONDARY' ? 'Secondary' : 'Senior Secondary'}</p>
+                                      </div>
+                                  </div>
+                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                                      <div className="flex gap-1 mr-2 border-r pr-2 dark:border-slate-800">
+                                          <button onClick={() => handleMoveClass(cls.id, 'up')} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-all"><ArrowUp className="w-4 h-4"/></button>
+                                          <button onClick={() => handleMoveClass(cls.id, 'down')} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-all"><ArrowDown className="w-4 h-4"/></button>
+                                      </div>
+                                      <button onClick={() => { setEditingClassId(cls.id); setNewClassName(cls.name); setNewClassSection(cls.section); }} className="p-3 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-2xl transition-all"><Edit2 className="w-4 h-4"/></button>
+                                      <button onClick={() => handleDeleteClass(cls.id)} disabled={deleteClassMutation.isPending} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all">
+                                          {deleteClassMutation.isPending && deleteClassMutation.variables === cls.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
+                                      </button>
+                                  </div>
+                              </div>
+                          ))}
+                          {classes.length === 0 && (
+                            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-4">
+                                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                    <Settings className="w-8 h-8 opacity-20" />
+                                </div>
+                                <p className="text-xs font-black uppercase tracking-widest">No classes registered</p>
+                            </div>
                           )}
                       </div>
                   </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/30 dark:bg-slate-950/30">
-                  <div className="flex items-center justify-between mb-4 px-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Active Classes ({classes.length})</span>
-                  </div>
-                  <div className="space-y-3">
-                      {classes.map((cls: ClassSection) => (
-                          <div key={cls.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl group hover:border-brand-500 hover:shadow-xl transition-all">
-                              <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-sm font-black text-brand-600 shadow-inner">{cls.name.substring(0,2)}</div>
-                                  <div>
-                                      <h4 className="text-base font-black text-slate-800 dark:text-slate-100 tracking-tight">{cls.name}</h4>
-                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cls.section === 'SECONDARY' ? 'Secondary' : 'Senior Secondary'}</p>
-                                  </div>
-                              </div>
-                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                                  <div className="flex gap-1 mr-2 border-r pr-2 dark:border-slate-800">
-                                      <button onClick={() => handleMoveClass(cls.id, 'up')} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-all"><ArrowUp className="w-4 h-4"/></button>
-                                      <button onClick={() => handleMoveClass(cls.id, 'down')} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-all"><ArrowDown className="w-4 h-4"/></button>
-                                  </div>
-                                  <button onClick={() => { setEditingClassId(cls.id); setNewClassName(cls.name); setNewClassSection(cls.section); }} className="p-3 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-2xl transition-all"><Edit2 className="w-4 h-4"/></button>
-                                  <button onClick={() => handleDeleteClass(cls.id)} disabled={deleteClassMutation.isPending} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all">
-                                      {deleteClassMutation.isPending && deleteClassMutation.variables === cls.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
-                                  </button>
-                              </div>
-                          </div>
-                      ))}
-                      {classes.length === 0 && (
-                        <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-4">
-                            <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                <Settings className="w-8 h-8 opacity-20" />
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="p-8 bg-brand-50/50 dark:bg-brand-900/10 border-b dark:border-slate-800">
+                        <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight mb-2">Configure Period Timings</h4>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Set start and end times for each period. Leave blank to hide.</p>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                        {PERIODS.map((p, idx) => (
+                            <div key={idx} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-xs font-black text-brand-600 shrink-0">{p.label}</div>
+                                <div className="grid grid-cols-2 gap-3 flex-1">
+                                    <div className="space-y-1">
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Start</label>
+                                        <input 
+                                            type="text" 
+                                            value={tempPeriods[idx]?.start || ''} 
+                                            onChange={e => setTempPeriods({...tempPeriods, [idx]: {...(tempPeriods[idx] || {}), start: e.target.value}})}
+                                            placeholder="09:00 AM" 
+                                            className="w-full text-[10px] h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">End</label>
+                                        <input 
+                                            type="text" 
+                                            value={tempPeriods[idx]?.end || ''} 
+                                            onChange={e => setTempPeriods({...tempPeriods, [idx]: {...(tempPeriods[idx] || {}), end: e.target.value}})}
+                                            placeholder="10:00 AM" 
+                                            className="w-full text-[10px] h-9 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl px-3 font-bold"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <p className="text-xs font-black uppercase tracking-widest">No classes registered</p>
-                        </div>
-                      )}
-                  </div>
-              </div>
-           </div>
+                        ))}
+                    </div>
+                    <div className="p-6 bg-white dark:bg-slate-900 border-t dark:border-slate-800">
+                        <button 
+                            onClick={() => {
+                                const configs = Object.entries(tempPeriods).map(([idx, times]) => ({
+                                    period_index: parseInt(idx),
+                                    start_time: times.start,
+                                    end_time: times.end
+                                }));
+                                savePeriodsMutation.mutate(configs);
+                            }}
+                            disabled={savePeriodsMutation.isPending}
+                            className="w-full bg-brand-600 text-white h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-brand-700 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {savePeriodsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>}
+                            Save All Timings
+                        </button>
+                    </div>
+                </div>
+              )}
+            </div>
         </div>
       )}
     </div>

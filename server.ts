@@ -7,6 +7,7 @@ import teachersHandler from "./api/teachers";
 import remarksHandler from "./api/remarks";
 import examsHandler from "./api/exams";
 import meetingsHandler from "./api/meetings";
+import periodsHandler from "./api/periods";
 
 async function startServer() {
   const app = express();
@@ -15,6 +16,10 @@ async function startServer() {
   app.use(express.json());
 
   // API routes
+  app.all("/api/periods", async (req: Request, res: Response) => {
+    try { await periodsHandler(req, res); } catch (error) { res.status(500).json({ error: "Internal Server Error" }); }
+  });
+
   app.all("/api/classes", async (req: Request, res: Response) => {
     try { await classesHandler(req, res); } catch (error) { res.status(500).json({ error: "Internal Server Error" }); }
   });

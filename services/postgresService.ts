@@ -167,5 +167,21 @@ export const postgresService = {
       if (!res.ok) throw new Error("Failed to delete meeting");
       return await res.json();
     }
+  },
+  periods: {
+    getAll: async (): Promise<any[]> => {
+      const res = await fetch('/api/periods');
+      if (!res.ok) throw new Error("Failed to fetch periods");
+      return await res.json();
+    },
+    save: async (configs: any[]) => {
+      const res = await fetch('/api/periods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(configs)
+      });
+      if (!res.ok) throw new Error("Failed to save periods");
+      return await res.json();
+    }
   }
 };

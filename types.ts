@@ -94,6 +94,12 @@ export interface AppNotification {
 }
 
 // Updated DEFAULT_CLASSES based on requirements
+export interface PeriodConfig {
+  period_index: number;
+  start_time: string;
+  end_time: string;
+}
+
 export const DEFAULT_CLASSES: ClassSection[] = [
   { id: '6', name: '6', section: 'SECONDARY' },
   { id: '7', name: '7', section: 'SECONDARY' },
