@@ -167,7 +167,7 @@ const App: React.FC = () => {
 
           <footer className="h-16 border-t bg-white flex flex-col items-center justify-center text-[10px] font-black text-slate-400 uppercase no-print">
               <div className="flex items-center gap-3 tracking-[0.6em]">
-                  Silver Star Management • Made by Lucky <Heart className="w-3.5 h-3.5 text-red-500 fill-current animate-pulse" />
+                  Made by Lucky <Heart className="w-3.5 h-3.5 text-red-500 fill-current animate-pulse" />
               </div>
           </footer>
         </main>
