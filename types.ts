@@ -98,6 +98,8 @@ export interface PeriodConfig {
   period_index: number;
   start_time: string;
   end_time: string;
+  label?: string;
+  is_lunch?: boolean;
 }
 
 export const DEFAULT_CLASSES: ClassSection[] = [
@@ -113,13 +115,13 @@ export const DEFAULT_CLASSES: ClassSection[] = [
 ];
 
 export const PERIODS = [
-  { start: "09:15 AM", end: "09:55 AM", label: "I" },
-  { start: "09:55 AM", end: "10:35 AM", label: "II" },
-  { start: "10:35 AM", end: "11:15 AM", label: "III" },
-  { start: "11:15 AM", end: "11:30 AM", label: "LUNCH" },
-  { start: "11:30 AM", end: "12:15 PM", label: "IV" },
-  { start: "12:15 PM", end: "01:00 PM", label: "V" },
-  { start: "01:00 PM", end: "01:45 PM", label: "VI" },
+  { start: "09:15 AM", end: "09:55 AM", label: "I", is_lunch: false },
+  { start: "09:55 AM", end: "10:35 AM", label: "II", is_lunch: false },
+  { start: "10:35 AM", end: "11:15 AM", label: "III", is_lunch: false },
+  { start: "11:15 AM", end: "11:30 AM", label: "LUNCH", is_lunch: true },
+  { start: "11:30 AM", end: "12:15 PM", label: "IV", is_lunch: false },
+  { start: "12:15 PM", end: "01:00 PM", label: "V", is_lunch: false },
+  { start: "01:00 PM", end: "01:45 PM", label: "VI", is_lunch: false },
 ];
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

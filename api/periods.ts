@@ -13,20 +13,26 @@ export default async function handler(req: Request, res: Response) {
 
   try {
     if (req.method === 'GET') {
+      try {
+        await sql`ALTER TABLE period_configs ADD COLUMN IF NOT EXISTS label TEXT`;
+        await sql`ALTER TABLE period_configs ADD COLUMN IF NOT EXISTS is_lunch BOOLEAN DEFAULT FALSE`;
+      } catch (e) {
+        // Ignore if already exists
+      }
       const rows = await sql`SELECT * FROM period_configs ORDER BY period_index ASC`;
       return res.status(200).json(rows);
     }
 
     if (req.method === 'POST') {
-      const configs = req.body; // Array of { period_index, start_time, end_time }
+      const configs = req.body; // Array of { period_index, start_time, end_time, label, is_lunch }
+      
+      // Clear existing periods if the count changes, or just delete all and insert
+      await sql`DELETE FROM period_configs`;
       
       for (const config of configs) {
         await sql`
-          INSERT INTO period_configs (period_index, start_time, end_time)
-          VALUES (${config.period_index}, ${config.start_time}, ${config.end_time})
-          ON CONFLICT (period_index) DO UPDATE SET 
-            start_time = EXCLUDED.start_time, 
-            end_time = EXCLUDED.end_time
+          INSERT INTO period_configs (period_index, start_time, end_time, label, is_lunch)
+          VALUES (${config.period_index}, ${config.start_time}, ${config.end_time}, ${config.label || ''}, ${config.is_lunch || false})
         `;
       }
       return res.status(200).json({ success: true });

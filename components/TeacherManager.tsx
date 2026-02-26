@@ -29,14 +29,31 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
   const { data: staticData } = useQuery({
     queryKey: ['static-data'],
     queryFn: async () => {
-        const [c, t] = await Promise.all([dataService.getClasses(), dataService.getTeachers()]);
-        return { classes: c, teachers: t };
+        const [c, t, p] = await Promise.all([
+            dataService.getClasses(), 
+            dataService.getTeachers(),
+            dataService.getPeriodConfigs()
+        ]);
+        return { classes: c, teachers: t, periodConfigs: p };
     }
   });
 
   const teachers = staticData?.teachers || [];
   const classes = staticData?.classes || [];
+  const periodConfigs = staticData?.periodConfigs || [];
   const isLoading = !staticData;
+
+  const activePeriods = React.useMemo(() => {
+    if (periodConfigs && periodConfigs.length > 0) {
+      return periodConfigs.map(p => ({
+        start: p.start_time,
+        end: p.end_time,
+        label: p.label || p.period_index.toString(),
+        is_lunch: p.is_lunch
+      }));
+    }
+    return PERIODS;
+  }, [periodConfigs]);
 
   const { data: dbData } = useQuery({
     queryKey: ['schedule', selectedDate, selectedDayName],
@@ -249,13 +266,14 @@ export const TeacherManager: React.FC<Props> = ({ currentRole }) => {
                       </p>
 
                       <div className="space-y-4">
-                          {PERIODS.map((period, pIdx) => {
-                              if (period.label === 'LUNCH') return null;
+                          {activePeriods.map((period, pIdx) => {
+                              if (period.is_lunch) return null;
                               
                               // Check if teacher is actually absent in this period based on status
+                              const lunchIndex = activePeriods.findIndex(p => p.is_lunch);
                               const isAbsentInPeriod = substituteFor.status === 'absent' || 
-                                                       (substituteFor.status === 'half_day_before' && pIdx < 3) || 
-                                                       (substituteFor.status === 'half_day_after' && pIdx > 3);
+                                                       (substituteFor.status === 'half_day_before' && pIdx < lunchIndex) || 
+                                                       (substituteFor.status === 'half_day_after' && pIdx > lunchIndex);
                               
                               if (!isAbsentInPeriod) return null;
 

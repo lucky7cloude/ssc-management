@@ -7,7 +7,7 @@ import { postgresService } from '../services/postgresService';
 import { 
   ChevronRight, ChevronLeft, X, Layout, Plus, Calendar as CalendarIcon, 
   Loader2, Save, Download, UserCheck, Info, Settings, Trash2, Edit2, Check, Search, Eraser, UserX, Clock,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, ChevronDown
 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -19,8 +19,35 @@ interface Props {
 export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
-  const [timetableMode, setTimetableMode] = useState<'DAILY' | 'BASE'>('DAILY');
-  const [activeSection, setActiveSection] = useState<'SECONDARY' | 'SENIOR_SECONDARY'>('SECONDARY');
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
+  const [isCopyDropdownOpen, setIsCopyDropdownOpen] = useState(false);
+  const [customCopyDate, setCustomCopyDate] = useState('');
+
+  const { data: staticData } = useQuery({
+    queryKey: ['static-data'],
+    queryFn: async () => {
+        // Attempt to fetch from API, fallbacks handled in postgresService
+        const [c, t, p] = await Promise.all([
+            dataService.getClasses(), 
+            dataService.getTeachers(),
+            dataService.getPeriodConfigs()
+        ]);
+        return { classes: c, teachers: t, periodConfigs: p };
+    },
+    staleTime: 60000 
+  });
+
+  const teachers = staticData?.teachers || [];
+  const classes = staticData?.classes || [];
+  const periodConfigs = staticData?.periodConfigs || [];
+
+  // Initialize selected classes when classes load
+  useEffect(() => {
+    if (classes.length > 0 && selectedClassIds.length === 0) {
+      setSelectedClassIds(classes.map((c: ClassSection) => c.id));
+    }
+  }, [classes, selectedClassIds.length]);
   
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,29 +92,22 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const [editingPeriodStart, setEditingPeriodStart] = useState('');
   const [editingPeriodEnd, setEditingPeriodEnd] = useState('');
 
-  // Use postgresService for classes now
-  const { data: staticData } = useQuery({
-    queryKey: ['static-data'],
-    queryFn: async () => {
-        // Attempt to fetch from API, fallbacks handled in postgresService
-        const [c, t, p] = await Promise.all([
-            dataService.getClasses(), 
-            dataService.getTeachers(),
-            dataService.getPeriodConfigs()
-        ]);
-        return { classes: c, teachers: t, periodConfigs: p };
-    },
-    staleTime: 60000 
-  });
-
-  const teachers = staticData?.teachers || [];
-  const classes = staticData?.classes || [];
-  const periodConfigs = staticData?.periodConfigs || [];
+  const activePeriods = useMemo(() => {
+    if (periodConfigs && periodConfigs.length > 0) {
+      return periodConfigs.map(p => ({
+        start: p.start_time,
+        end: p.end_time,
+        label: p.label || p.period_index.toString(),
+        is_lunch: p.is_lunch
+      }));
+    }
+    return PERIODS;
+  }, [periodConfigs]);
 
   useEffect(() => {
     if (isClassManagerOpen && periodConfigs) {
       const initial: Record<number, {start: string, end: string}> = {};
-      PERIODS.forEach((_, idx) => {
+      activePeriods.forEach((_, idx) => {
         const config = periodConfigs.find(pc => pc.period_index === idx);
         initial[idx] = {
           start: config?.start_time || '',
@@ -96,7 +116,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       });
       setTempPeriods(initial);
     }
-  }, [isClassManagerOpen, periodConfigs]);
+  }, [isClassManagerOpen, periodConfigs, activePeriods]);
 
   const { data: dbData } = useQuery({
     queryKey: ['schedule', selectedDate, selectedDayName],
@@ -107,9 +127,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   });
 
   const scheduleData = useMemo(() => {
-    if (timetableMode === 'BASE') return dbData?.baseSchedule || {};
     return dbData?.schedule || {};
-  }, [dbData, timetableMode]);
+  }, [dbData]);
 
   const attendanceData = dbData?.attendance || {};
   const serverInstruction = dbData?.instruction || '';
@@ -123,11 +142,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const saveMutation = useMutation({
     mutationFn: async (payload: any) => {
         console.log("Saving Slot Payload:", payload); // Debug Log
-        if (timetableMode === 'BASE') {
-            return await dataService.saveBaseEntry(selectedDayName, payload.classId, payload.periodIndex, payload.entry);
-        } else {
-            return await dataService.saveDailyOverride(selectedDate, selectedDayName, payload.classId, payload.periodIndex, payload.override);
-        }
+        return await dataService.saveDailyOverride(selectedDate, selectedDayName, payload.classId, payload.periodIndex, payload.override);
     },
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['schedule'] });
@@ -192,13 +207,13 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   };
 
   const sectionClasses = useMemo(() => {
-    return classes.filter((c: ClassSection) => c.section === activeSection);
-  }, [classes, activeSection]);
+    if (selectedClassIds.length === 0) return classes;
+    return classes.filter((c: ClassSection) => selectedClassIds.includes(c.id));
+  }, [classes, selectedClassIds]);
 
   const freeTeachersPerPeriod = useMemo(() => {
-    const LUNCH_PERIOD = 3;
-    return PERIODS.map((_, pIdx) => {
-        if (pIdx === LUNCH_PERIOD) return [];
+    return activePeriods.map((_, pIdx) => {
+        if (activePeriods[pIdx].is_lunch) return [];
         const busyIds = new Set<string>();
         
         Object.entries(scheduleData).forEach(([key, entry]: [string, any]) => {
@@ -213,8 +228,9 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
 
         Object.entries(attendanceData).forEach(([tId, status]) => {
             if (status === 'absent') busyIds.add(tId);
-            if (status === 'half_day_before' && pIdx < LUNCH_PERIOD) busyIds.add(tId);
-            if (status === 'half_day_after' && pIdx > LUNCH_PERIOD) busyIds.add(tId);
+            const lunchIndex = activePeriods.findIndex(p => p.is_lunch);
+            if (status === 'half_day_before' && pIdx < lunchIndex) busyIds.add(tId);
+            if (status === 'half_day_after' && pIdx > lunchIndex) busyIds.add(tId);
         });
 
         return teachers.filter(t => !busyIds.has(t.id));
@@ -224,7 +240,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   // --- HANDLERS ---
 
   const handleCellClick = (classId: string, periodIndex: number) => {
-    if (PERIODS[periodIndex].label === "LUNCH") return;
+    if (activePeriods[periodIndex].is_lunch) return;
     if (currentRole !== 'PRINCIPAL' && currentRole !== 'MANAGEMENT') return;
     
     setEditingSlot({ classId, periodIndex });
@@ -271,54 +287,34 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     const type = explicitData?.type || (teacherId ? 'SUBSTITUTION' : 'VACANT');
     const isClear = explicitData?.isClear;
     
-    if (timetableMode === 'BASE') {
-        const entry: ScheduleEntry = {
-            teacherId: teacherId || null,
-            subject: subject || null,
-            note: note || null,
-            splitTeacherId: isSplitMode ? splitTeacherId || null : null,
-            splitSubject: isSplitMode ? splitSubject || null : null,
-            splitNote: isSplitMode ? splitNote || null : null,
-            mergedClassIds: isMergeMode ? mergedClassIds : null
-        };
-        saveMutation.mutate({ classId, periodIndex, entry: isClear ? null : entry });
-        
-        // Also save to merged classes
-        if (isMergeMode && mergedClassIds.length > 0) {
-            mergedClassIds.forEach(mId => {
-                saveMutation.mutate({ classId: mId, periodIndex, entry: isClear ? null : { ...entry, mergedClassIds: [classId, ...mergedClassIds.filter(id => id !== mId)] } });
-            });
-        }
-    } else {
-        // Daily Mode
-        const override: DailyOverride = {
-            subTeacherId: teacherId || null,
-            subSubject: subject || null,
-            subNote: note || null,
-            originalTeacherId: (dbData?.baseSchedule as any)?.[`${classId}_${periodIndex}`]?.teacherId || '',
-            type: type,
-            splitTeacherId: isSplitMode ? splitTeacherId || null : null,
-            splitSubject: isSplitMode ? splitSubject || null : null,
-            splitNote: isSplitMode ? splitNote || null : null,
-            mergedClassIds: isMergeMode ? mergedClassIds : null
-        };
-        saveMutation.mutate({ classId, periodIndex, override: isClear ? null : override });
+    // Daily Mode
+    const override: DailyOverride = {
+        subTeacherId: teacherId || null,
+        subSubject: subject || null,
+        subNote: note || null,
+        originalTeacherId: (dbData?.baseSchedule as any)?.[`${classId}_${periodIndex}`]?.teacherId || '',
+        type: type,
+        splitTeacherId: isSplitMode ? splitTeacherId || null : null,
+        splitSubject: isSplitMode ? splitSubject || null : null,
+        splitNote: isSplitMode ? splitNote || null : null,
+        mergedClassIds: isMergeMode ? mergedClassIds : null
+    };
+    saveMutation.mutate({ classId, periodIndex, override: isClear ? null : override });
 
-        // Also save to merged classes
-        if (isMergeMode && mergedClassIds.length > 0) {
-            mergedClassIds.forEach(mId => {
-                const mOriginalTeacherId = (dbData?.baseSchedule as any)?.[`${mId}_${periodIndex}`]?.teacherId || '';
-                saveMutation.mutate({ 
-                    classId: mId, 
-                    periodIndex, 
-                    override: isClear ? null : { 
-                        ...override, 
-                        originalTeacherId: mOriginalTeacherId,
-                        mergedClassIds: [classId, ...mergedClassIds.filter(id => id !== mId)] 
-                    } 
-                });
+    // Also save to merged classes
+    if (isMergeMode && mergedClassIds.length > 0) {
+        mergedClassIds.forEach(mId => {
+            const mOriginalTeacherId = (dbData?.baseSchedule as any)?.[`${mId}_${periodIndex}`]?.teacherId || '';
+            saveMutation.mutate({ 
+                classId: mId, 
+                periodIndex, 
+                override: isClear ? null : { 
+                    ...override, 
+                    originalTeacherId: mOriginalTeacherId,
+                    mergedClassIds: [classId, ...mergedClassIds.filter(id => id !== mId)] 
+                } 
             });
-        }
+        });
     }
   };
 
@@ -372,7 +368,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   // --- RENDERERS ---
 
   const renderCell = (classId: string, periodIndex: number) => {
-    const isLunch = PERIODS[periodIndex].label === "LUNCH";
+    const isLunch = activePeriods[periodIndex].is_lunch;
     if (isLunch) return <div className="h-full w-full bg-slate-100 dark:bg-slate-900/50 flex items-center justify-center text-[9px] text-slate-400 font-black uppercase rounded-lg">Lunch</div>;
     
     const entry = scheduleData[`${classId}_${periodIndex}`];
@@ -430,11 +426,11 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     doc.text(`Daily Schedule: ${selectedDate} (${selectedDayName})`, 148.5, 22, { align: 'center' });
 
     const tableHeaders = ["PRD", ...classes.map((c: ClassSection) => c.name)];
-    const tableBody = PERIODS.map((p, pIdx) => {
+    const tableBody = activePeriods.map((p, pIdx) => {
         const row = [p.label];
         classes.forEach((c: ClassSection) => {
             const entry = scheduleData[`${c.id}_${pIdx}`];
-            if (p.label === "LUNCH") row.push("LUNCH");
+            if (p.is_lunch) row.push("LUNCH");
             else if (!entry) row.push("-");
             else {
                 const activeTeacherId = 'subTeacherId' in entry ? entry.subTeacherId : entry.teacherId;
@@ -507,11 +503,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     <div className="space-y-6 relative pb-20">
       <div className="flex flex-col xl:flex-row gap-4 items-center justify-between no-print bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800">
         <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border dark:border-slate-700">
-                <button onClick={() => setTimetableMode('DAILY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${timetableMode === 'DAILY' ? 'bg-white dark:bg-slate-900 text-brand-600 shadow-lg' : 'text-slate-500'}`}><CalendarIcon className="w-4 h-4" /> Daily</button>
-                <button onClick={() => setTimetableMode('BASE')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${timetableMode === 'BASE' ? 'bg-white dark:bg-slate-900 text-purple-600 shadow-lg' : 'text-slate-500'}`}><Layout className="w-4 h-4" /> Base</button>
-            </div>
-            
             <div className="relative flex items-center bg-white dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <button onClick={() => adjustDate(-1)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all group border-r dark:border-slate-800 mr-1"><ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" /></button>
                 
@@ -548,8 +539,47 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             )}
             <button onClick={downloadPDF} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-black text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-brand-600 transition-all shadow-lg"><Download className="w-4 h-4" /> PDF</button>
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border dark:border-slate-700">
-                <button onClick={() => setActiveSection('SECONDARY')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${activeSection === 'SECONDARY' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-md' : 'text-slate-400 opacity-60'}`}>SEC</button>
-                <button onClick={() => setActiveSection('SENIOR_SECONDARY')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${activeSection === 'SENIOR_SECONDARY' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-md' : 'text-slate-400 opacity-60'}`}>SR SEC</button>
+            <div className="relative">
+                <button 
+                    onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} 
+                    className="flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-md"
+                >
+                    Filter Classes <ChevronDown className="w-3 h-3" />
+                </button>
+                
+                {isClassDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 overflow-hidden">
+                        <div className="p-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-slate-500">Select Classes</span>
+                            <button 
+                                onClick={() => setSelectedClassIds(classes.map((c: ClassSection) => c.id))}
+                                className="text-[9px] font-bold text-brand-600 hover:text-brand-700"
+                            >
+                                All
+                            </button>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                            {classes.map((c: ClassSection) => (
+                                <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl cursor-pointer transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedClassIds.includes(c.id)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedClassIds([...selectedClassIds, c.id]);
+                                            } else {
+                                                setSelectedClassIds(selectedClassIds.filter(id => id !== c.id));
+                                            }
+                                        }}
+                                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                    />
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{c.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
             </div>
         </div>
       </div>
@@ -560,7 +590,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
             {sectionClasses.map((cls: ClassSection) => (
                 <div key={cls.id} className="bg-slate-100 dark:bg-slate-950 p-4 text-center uppercase text-[12px] font-black border-b dark:border-slate-800 truncate dark:text-slate-200">{cls.name}</div>
             ))}
-            {PERIODS.map((p, pIndex) => (
+            {activePeriods.map((p, pIndex) => (
                 <React.Fragment key={pIndex}>
                     <div 
                         className={`p-3 text-center border-t dark:border-slate-800 bg-slate-100 dark:bg-slate-950 h-24 flex flex-col justify-center relative group ${(currentRole === 'PRINCIPAL' || currentRole === 'MANAGEMENT') ? 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors' : ''}`}
@@ -640,8 +670,8 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] shadow-sm border border-slate-200 dark:border-slate-800">
               <h3 className="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest mb-6 flex items-center gap-2"><UserCheck className="w-5 h-5 text-brand-600" /> Free Teachers Grid</h3>
               <div className="space-y-6">
-                  {PERIODS.map((p, pIdx) => (
-                      <div key={pIdx} className={`rounded-2xl border transition-all ${p.label === 'LUNCH' ? 'hidden' : 'bg-slate-50/50 dark:bg-slate-950/20 border-slate-100 dark:border-slate-800'}`}>
+                  {activePeriods.map((p, pIdx) => (
+                      <div key={pIdx} className={`rounded-2xl border transition-all ${p.is_lunch ? 'hidden' : 'bg-slate-50/50 dark:bg-slate-950/20 border-slate-100 dark:border-slate-800'}`}>
                           <div className="p-3 border-b dark:border-slate-800 flex items-center gap-3">
                               <span className="text-xs font-black text-white bg-slate-400 dark:bg-slate-700 w-6 h-6 rounded flex items-center justify-center">{p.label}</span>
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Available Staff</span>
@@ -690,10 +720,10 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                   <div className="bg-slate-50 dark:bg-slate-950 p-5 border-b dark:border-slate-800 flex justify-between items-center shrink-0">
                       <div>
                         <h3 className="font-black uppercase tracking-tight text-slate-800 dark:text-slate-100 text-lg">
-                            {timetableMode === 'DAILY' ? 'Assign Substitute' : 'Master Assignment'}
+                            Assign Substitute
                         </h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                            {editingSlot && `${classes.find((c: ClassSection) => c.id === editingSlot.classId)?.name} • Period ${PERIODS[editingSlot.periodIndex].label}`}
+                            {editingSlot && `${classes.find((c: ClassSection) => c.id === editingSlot.classId)?.name} • Period ${activePeriods[editingSlot.periodIndex].label}`}
                         </p>
                       </div>
                       <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><X className="w-6 h-6 text-slate-500"/></button>
@@ -944,13 +974,14 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                       </p>
 
                       <div className="space-y-4">
-                          {PERIODS.map((period, pIdx) => {
-                              if (period.label === 'LUNCH') return null;
+                          {activePeriods.map((period, pIdx) => {
+                              if (period.is_lunch) return null;
                               
                               // Check if teacher is actually absent in this period based on status
+                              const lunchIndex = activePeriods.findIndex(p => p.is_lunch);
                               const isAbsentInPeriod = substituteFor.status === 'absent' || 
-                                                       (substituteFor.status === 'half_day_before' && pIdx < 3) || 
-                                                       (substituteFor.status === 'half_day_after' && pIdx > 3);
+                                                       (substituteFor.status === 'half_day_before' && pIdx < lunchIndex) || 
+                                                       (substituteFor.status === 'half_day_after' && pIdx > lunchIndex);
                               
                               if (!isAbsentInPeriod) return null;
 
@@ -1234,7 +1265,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Set start and end times for each period. Leave blank to hide.</p>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                        {PERIODS.map((p, idx) => (
+                        {activePeriods.map((p, idx) => (
                             <div key={idx} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl flex items-center gap-4">
                                 <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-xs font-black text-brand-600 shrink-0">{p.label}</div>
                                 <div className="grid grid-cols-2 gap-3 flex-1">
