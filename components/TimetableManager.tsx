@@ -137,6 +137,22 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     setTempPeriods(updated);
   };
 
+  const onClassDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+    const items = Array.from(classes);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    
+    // Update sort_order based on new order
+    const updated = items.map((item, idx) => ({
+      ...item,
+      sort_order: idx
+    }));
+    
+    await dataService.saveClasses(updated);
+    queryClient.invalidateQueries({ queryKey: ['static-data'] });
+  };
+
   const { data: dbData } = useQuery({
     queryKey: ['schedule', selectedDate, selectedDayName],
     queryFn: () => dataService.getFullTimetableData(selectedDate, selectedDayName),
@@ -386,24 +402,6 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
       sort_order: classes.find(c => c.id === id)?.sort_order
     };
     addClassMutation.mutate(updatedClass);
-  };
-
-  const handleMoveClass = async (id: string, direction: 'up' | 'down') => {
-    const currentIndex = classes.findIndex(c => c.id === id);
-    if (currentIndex === -1) return;
-    
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= classes.length) return;
-    
-    const list = [...classes];
-    const [moved] = list.splice(currentIndex, 1);
-    list.splice(newIndex, 0, moved);
-    
-    // Update all sort orders
-    const updates = list.map((c, idx) => ({ ...c, sort_order: idx }));
-    
-    await dataService.saveClasses(updates);
-    queryClient.invalidateQueries({ queryKey: ['static-data'] });
   };
 
   const handleDeleteClass = (id: string) => {
@@ -1339,41 +1337,60 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                       </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/30 dark:bg-slate-950/30">
-                      <div className="flex items-center justify-between mb-4 px-2">
+                  <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/30 dark:bg-slate-950/30">
+                      <div className="flex items-center justify-between p-6 pb-2">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Active Classes ({classes.length})</span>
                       </div>
-                      <div className="space-y-3">
-                          {classes.map((cls: ClassSection) => (
-                              <div key={cls.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl group hover:border-brand-500 hover:shadow-xl transition-all">
-                                  <div className="flex items-center gap-4">
-                                      <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-sm font-black text-brand-600 shadow-inner">{cls.name.substring(0,2)}</div>
-                                      <div>
-                                          <h4 className="text-base font-black text-slate-800 dark:text-slate-100 tracking-tight">{cls.name}</h4>
-                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cls.section === 'SECONDARY' ? 'Secondary' : 'Senior Secondary'}</p>
+                      
+                      <DragDropContext onDragEnd={onClassDragEnd}>
+                        <Droppable droppableId="classes-list">
+                          {(provided) => (
+                            <div 
+                              {...provided.droppableProps}
+                              ref={provided.innerRef}
+                              className="flex-1 overflow-y-auto p-6 pt-2 space-y-3 custom-scrollbar"
+                            >
+                                {classes.map((cls: ClassSection, idx: number) => (
+                                    <Draggable key={cls.id} draggableId={cls.id} index={idx}>
+                                      {(provided, snapshot) => (
+                                        <div 
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          className={`flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl group hover:border-brand-500 hover:shadow-xl transition-all ${snapshot.isDragging ? 'shadow-2xl border-brand-500 scale-[1.02] z-[300]' : ''}`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div {...provided.dragHandleProps} className="p-1 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing">
+                                                    <GripVertical className="w-4 h-4" />
+                                                </div>
+                                                <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-sm font-black text-brand-600 shadow-inner">{cls.name.substring(0,2)}</div>
+                                                <div>
+                                                    <h4 className="text-base font-black text-slate-800 dark:text-slate-100 tracking-tight">{cls.name}</h4>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cls.section === 'SECONDARY' ? 'Secondary' : 'Senior Secondary'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                                                <button onClick={() => { setEditingClassId(cls.id); setNewClassName(cls.name); setNewClassSection(cls.section); }} className="p-3 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-2xl transition-all"><Edit2 className="w-4 h-4"/></button>
+                                                <button onClick={() => handleDeleteClass(cls.id)} disabled={deleteClassMutation.isPending} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all">
+                                                    {deleteClassMutation.isPending && deleteClassMutation.variables === cls.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
+                                                </button>
+                                            </div>
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                ))}
+                                {provided.placeholder}
+                                {classes.length === 0 && (
+                                  <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-4">
+                                      <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                          <Settings className="w-8 h-8 opacity-20" />
                                       </div>
+                                      <p className="text-xs font-black uppercase tracking-widest">No classes registered</p>
                                   </div>
-                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                                      <div className="flex gap-1 mr-2 border-r pr-2 dark:border-slate-800">
-                                          <button onClick={() => handleMoveClass(cls.id, 'up')} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-all"><ArrowUp className="w-4 h-4"/></button>
-                                          <button onClick={() => handleMoveClass(cls.id, 'down')} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-all"><ArrowDown className="w-4 h-4"/></button>
-                                      </div>
-                                      <button onClick={() => { setEditingClassId(cls.id); setNewClassName(cls.name); setNewClassSection(cls.section); }} className="p-3 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-2xl transition-all"><Edit2 className="w-4 h-4"/></button>
-                                      <button onClick={() => handleDeleteClass(cls.id)} disabled={deleteClassMutation.isPending} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all">
-                                          {deleteClassMutation.isPending && deleteClassMutation.variables === cls.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
-                                      </button>
-                                  </div>
-                              </div>
-                          ))}
-                          {classes.length === 0 && (
-                            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-4">
-                                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                    <Settings className="w-8 h-8 opacity-20" />
-                                </div>
-                                <p className="text-xs font-black uppercase tracking-widest">No classes registered</p>
+                                )}
                             </div>
                           )}
-                      </div>
+                        </Droppable>
+                      </DragDropContext>
                   </div>
                 </>
               ) : (
