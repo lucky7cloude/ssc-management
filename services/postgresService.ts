@@ -94,6 +94,18 @@ export const postgresService = {
       });
       if (!res.ok) throw new Error("API Copy failed");
       return await res.json();
+    },
+    repeatSchedule: async (sourceDate: string, targetDates: { dateStr: string, dayName: string }[]) => {
+      const res = await fetch('/api/timetable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'REPEAT_SCHEDULE',
+          payload: { sourceDate, targetDates }
+        })
+      });
+      if (!res.ok) throw new Error("API Repeat failed");
+      return await res.json();
     }
   },
   teachers: {

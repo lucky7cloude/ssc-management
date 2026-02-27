@@ -22,6 +22,7 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
+  const [isRepeatDropdownOpen, setIsRepeatDropdownOpen] = useState(false);
   const [isCopyDropdownOpen, setIsCopyDropdownOpen] = useState(false);
   const [customCopyDate, setCustomCopyDate] = useState('');
 
@@ -186,19 +187,31 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedule'] })
   });
 
-  const copyScheduleMutation = useMutation({
-    mutationFn: async () => {
+  const repeatScheduleMutation = useMutation({
+    mutationFn: async (type: 'DAY' | 'WEEK' | 'MONTH') => {
+        const targetDates: { dateStr: string, dayName: string }[] = [];
         const [year, month, day] = selectedDate.split('-').map(Number);
-        const nextDateObj = new Date(year, month - 1, day);
-        nextDateObj.setDate(nextDateObj.getDate() + 1);
-        const nextDateStr = nextDateObj.toLocaleDateString('en-CA');
-        const nextDayName = nextDateObj.toLocaleDateString('en-US', { weekday: 'long' });
         
-        return await postgresService.timetable.copySchedule(selectedDate, nextDateStr, nextDayName);
+        let count = 1;
+        if (type === 'WEEK') count = 7;
+        if (type === 'MONTH') count = 30;
+
+        for (let i = 1; i <= count; i++) {
+            const next = new Date(year, month - 1, day);
+            next.setDate(next.getDate() + i);
+            targetDates.push({
+                dateStr: next.toLocaleDateString('en-CA'),
+                dayName: next.toLocaleDateString('en-US', { weekday: 'long' })
+            });
+        }
+        
+        return await postgresService.timetable.repeatSchedule(selectedDate, targetDates);
     },
-    onSuccess: () => {
-        alert("Schedule copied to next day successfully!");
+    onSuccess: (_, variables) => {
+        const label = variables === 'DAY' ? 'Tomorrow' : variables === 'WEEK' ? 'Next 7 Days' : 'Next 30 Days';
+        alert(`Schedule repeated for ${label} successfully!`);
         queryClient.invalidateQueries({ queryKey: ['schedule'] });
+        setIsRepeatDropdownOpen(false);
     }
   });
 
@@ -459,11 +472,22 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
     doc.setTextColor(100);
     doc.text(`Daily Schedule: ${selectedDate} (${selectedDayName})`, 148.5, 22, { align: 'center' });
 
-    const tableHeaders = ["PRD", ...classes.map((c: ClassSection) => c.name)];
-    const tableBody = activePeriods.map((p, pIdx) => {
-        const row = [p.label];
-        classes.forEach((c: ClassSection) => {
-            const entry = scheduleData[`${c.id}_${pIdx}`];
+    const tableHeaders = ["PRD", ...sectionClasses.map((c: ClassSection) => c.name)];
+    
+    // Filter periods: only show if it has a time or is a lunch period
+    const displayPeriods = activePeriods.filter(p => p.start || p.end || p.is_lunch);
+
+    const tableBody = displayPeriods.map((p) => {
+        const originalIdx = activePeriods.indexOf(p);
+        
+        let prdText = p.label;
+        if (p.start || p.end) {
+            prdText += `\n${p.start || ''} - ${p.end || ''}`;
+        }
+        
+        const row = [prdText];
+        sectionClasses.forEach((c: ClassSection) => {
+            const entry = scheduleData[`${c.id}_${originalIdx}`];
             if (p.is_lunch) row.push("LUNCH");
             else if (!entry) row.push("-");
             else {
@@ -487,14 +511,18 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
         head: [tableHeaders],
         body: tableBody,
         startY: 30,
-        styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
-        headStyles: { fillColor: [14, 165, 233] }
+        styles: { fontSize: 7, cellPadding: 1.5, halign: 'center', valign: 'middle', overflow: 'linebreak' },
+        headStyles: { fillColor: [14, 165, 233], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 22, fillColor: [241, 245, 249] } },
+        alternateRowStyles: { fillColor: [248, 250, 252] }
     });
     
     const finalY = (doc as any).lastAutoTable?.finalY || 200;
     doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
     doc.text("DAILY INSTRUCTIONS / ASSEMBLY NOTES:", 15, finalY + 10);
     doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
     doc.text(dailyNote || "No instructions for today.", 15, finalY + 17, { maxWidth: 260 });
     doc.save(`SilverStar_Schedule_${selectedDate}.pdf`);
   };
@@ -571,10 +599,62 @@ export const TimetableManager: React.FC<Props> = ({ currentRole }) => {
                 </button>
               </>
             )}
-            <button onClick={() => copyScheduleMutation.mutate()} disabled={copyScheduleMutation.isPending} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg disabled:opacity-50">
-                {copyScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarIcon className="w-4 h-4" />}
-                Repeat Next Day
-            </button>
+            <div className="relative">
+                <button 
+                    onClick={() => setIsRepeatDropdownOpen(!isRepeatDropdownOpen)} 
+                    disabled={repeatScheduleMutation.isPending} 
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg disabled:opacity-50"
+                >
+                    {repeatScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarIcon className="w-4 h-4" />}
+                    Repeat Schedule <ChevronDown className="w-3 h-3" />
+                </button>
+                
+                {isRepeatDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] overflow-hidden animate-pop-in">
+                        <div className="p-2 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-black uppercase text-slate-500 px-2">Repeat For</span>
+                        </div>
+                        <div className="p-1">
+                            <button 
+                                onClick={() => repeatScheduleMutation.mutate('DAY')}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors text-left group"
+                            >
+                                <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
+                                    <Clock className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase">Tomorrow</div>
+                                    <div className="text-[9px] font-bold text-slate-400">Next 1 Day</div>
+                                </div>
+                            </button>
+                            <button 
+                                onClick={() => repeatScheduleMutation.mutate('WEEK')}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors text-left group"
+                            >
+                                <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+                                    <CalendarIcon className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase">Next Week</div>
+                                    <div className="text-[9px] font-bold text-slate-400">Next 7 Days</div>
+                                </div>
+                            </button>
+                            <button 
+                                onClick={() => repeatScheduleMutation.mutate('MONTH')}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors text-left group"
+                            >
+                                <div className="w-8 h-8 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-600 group-hover:bg-purple-100 transition-colors">
+                                    <Layout className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase">Next Month</div>
+                                    <div className="text-[9px] font-bold text-slate-400">Next 30 Days</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
             <button onClick={downloadPDF} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-black text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-brand-600 transition-all shadow-lg"><Download className="w-4 h-4" /> PDF</button>
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border dark:border-slate-700">
             <div className="relative">

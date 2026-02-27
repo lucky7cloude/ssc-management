@@ -220,6 +220,50 @@ export default async function handler(req: any, res: any) {
         }
       }
 
+      else if (type === 'REPEAT_SCHEDULE') {
+        const { sourceDate, targetDates } = payload;
+        
+        const sourceOverrides = await sql`
+          SELECT class_id, period_index, teacher_id, subject, note, split_teacher_id, split_subject, split_note, merged_class_ids 
+          FROM timetable 
+          WHERE date_str = ${sourceDate} AND is_base_schedule = false
+        `;
+        
+        const sourceInstructions = await sql`SELECT text FROM instructions WHERE date_str = ${sourceDate}`;
+        const instructionText = sourceInstructions[0]?.text;
+
+        for (const target of targetDates) {
+          const { dateStr, dayName } = target;
+          
+          await sql`DELETE FROM timetable WHERE date_str = ${dateStr} AND is_base_schedule = false`;
+          await sql`DELETE FROM instructions WHERE date_str = ${dateStr}`;
+          
+          for (const row of sourceOverrides) {
+            await sql`
+              INSERT INTO timetable (date_str, day_name, class_id, period_index, teacher_id, subject, note, is_base_schedule, split_teacher_id, split_subject, split_note, merged_class_ids)
+              VALUES (
+                ${dateStr}, 
+                ${dayName}, 
+                ${row.class_id}, 
+                ${row.period_index}, 
+                ${row.teacher_id}, 
+                ${row.subject}, 
+                ${row.note}, 
+                false,
+                ${row.split_teacher_id},
+                ${row.split_subject},
+                ${row.split_note},
+                ${row.merged_class_ids}
+              )
+            `;
+          }
+          
+          if (instructionText) {
+            await sql`INSERT INTO instructions (date_str, text) VALUES (${dateStr}, ${instructionText})`;
+          }
+        }
+      }
+
       return res.status(200).json({ success: true });
     }
 
